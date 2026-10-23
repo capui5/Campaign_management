@@ -115,7 +115,7 @@
       "routes": [
         {
           "name": "campaignList",
-          "pattern": ":?query:",
+          "pattern": "campaigns:?query:",
           "target": [
             "campaignList"
           ]
@@ -149,6 +149,13 @@
           ]
         },
         {
+          "name": "overview",
+          "pattern": "",
+          "target": [
+            "overview"
+          ]
+        },
+        {
           "name": "developerGuide",
           "pattern": "developerGuide",
           "target": [
@@ -176,6 +183,10 @@
         "developerGuide": {
           "id": "developerGuide",
           "name": "developerGuide"
+        },
+        "overview": {
+          "id": "overview",
+          "name": "overview"
         }
       }
     },

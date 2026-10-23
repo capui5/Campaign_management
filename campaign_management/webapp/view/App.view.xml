@@ -1,7 +1,43 @@
 <mvc:View controllerName="com.luxasia.campaignmanagement.controller.App"
     displayBlock="true"
     xmlns:mvc="sap.ui.core.mvc"
-    xmlns="sap.m">
-    <App id="app">
-    </App>
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+    <!-- Prototype layout: full-width app header, below it the side navigation and the routed pages -->
+    <VBox height="100%" renderType="Bare" class="campRoot">
+        <HBox alignItems="Center" renderType="Bare" class="campAppHeader">
+            <Button icon="sap-icon://nav-back" tooltip="{i18n>Camp_Back}" press="onNavBack" type="Transparent"
+                visible="{shell>/showBack}" class="campAppHeaderBack" />
+            <Text text="{i18n>App_Header_Title}" class="campAppHeaderTitle" />
+            <Text text="{i18n>App_Header_Tag}" class="campAppHeaderTag" />
+        </HBox>
+        <HBox renderType="Bare" class="campShell">
+            <layoutData><FlexItemData growFactor="1" baseSize="0" minHeight="0" /></layoutData>
+            <VBox class="campSideNav" renderType="Bare">
+                <List id="sideNav" mode="SingleSelectMaster" showSeparators="None" itemPress="onSideNavPress"
+                    backgroundDesign="Transparent" class="campSideNavList">
+                    <GroupHeaderListItem title="{i18n>Nav_Application}" />
+                    <StandardListItem type="Active" icon="sap-icon://business-objects-experience" title="{i18n>Nav_Overview}">
+                        <customData><core:CustomData key="route" value="overview" /></customData>
+                    </StandardListItem>
+                    <StandardListItem type="Active" icon="sap-icon://marketing-campaign" title="{i18n>Camp_Campaigns}">
+                        <customData><core:CustomData key="route" value="campaignList" /></customData>
+                    </StandardListItem>
+                    <StandardListItem type="Active" icon="sap-icon://lead" title="{i18n>Nav_Pricing}">
+                        <customData><core:CustomData key="route" value="campaignPricing" /></customData>
+                    </StandardListItem>
+                    <GroupHeaderListItem title="{i18n>Nav_Administration}" />
+                    <StandardListItem type="Active" icon="sap-icon://action-settings" title="{i18n>Nav_Config}">
+                        <customData><core:CustomData key="route" value="pricingConfig" /></customData>
+                    </StandardListItem>
+                    <StandardListItem type="Active" icon="sap-icon://hint" title="{i18n>Guide_Open}">
+                        <customData><core:CustomData key="route" value="developerGuide" /></customData>
+                    </StandardListItem>
+                </List>
+            </VBox>
+            <App id="app" class="campShellContent">
+                <layoutData><FlexItemData growFactor="1" baseSize="0" minWidth="0" /></layoutData>
+            </App>
+        </HBox>
+    </VBox>
 </mvc:View>

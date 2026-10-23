@@ -1,0 +1,82 @@
+<mvc:View controllerName="com.luxasia.campaignmanagement.controller.overview"
+    xmlns:mvc="sap.ui.core.mvc" displayBlock="true"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+    <Page id="overviewPage" busy="{overview>/busy}" busyIndicatorDelay="0">
+        <customHeader>
+            <OverflowToolbar class="campHeader">
+                <Text text="{i18n>Crumb_Overview}" class="campCrumb" />
+                <ToolbarSpacer />
+                <Button icon="sap-icon://refresh" tooltip="{i18n>Camp_Refresh}" press="onRefresh" type="Transparent" />
+            </OverflowToolbar>
+        </customHeader>
+        <content>
+            <VBox class="campPage">
+                <Title text="{i18n>Overview_Title}" titleStyle="H3" class="campPageTitle" />
+                <Text text="{i18n>Overview_Lead}" class="campLead" />
+
+                <!-- Metrics -->
+                <HBox wrap="Wrap" class="campOverviewKpis">
+                    <VBox class="campKpiCard">
+                        <Label text="{i18n>Camp_Kpi_Total}" />
+                        <Title text="{overview>/campaigns}" titleStyle="H2" />
+                    </VBox>
+                    <VBox class="campKpiCard">
+                        <Label text="{i18n>Camp_Tab_Active}" />
+                        <Title text="{overview>/active}" titleStyle="H2" class="campKpiActive" />
+                    </VBox>
+                    <VBox class="campKpiCard">
+                        <Label text="{i18n>Overview_Configured}" />
+                        <Title text="{overview>/configured} / {overview>/combinations}" titleStyle="H2" class="campKpiUpcoming" />
+                    </VBox>
+                </HBox>
+
+                <!-- End-to-end process -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Overview_Process}" titleStyle="H5" class="campCardTitle" />
+                    <HBox alignItems="Stretch" class="campGuideFlow">
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Overview_Step_1}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Overview_Step_1_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                        <core:Icon src="sap-icon://arrow-right" class="campGuideArrow">
+                            <core:layoutData><FlexItemData alignSelf="Center" /></core:layoutData>
+                        </core:Icon>
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Overview_Step_2}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Overview_Step_2_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                        <core:Icon src="sap-icon://arrow-right" class="campGuideArrow">
+                            <core:layoutData><FlexItemData alignSelf="Center" /></core:layoutData>
+                        </core:Icon>
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Overview_Step_3}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Overview_Step_3_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                        <core:Icon src="sap-icon://arrow-right" class="campGuideArrow">
+                            <core:layoutData><FlexItemData alignSelf="Center" /></core:layoutData>
+                        </core:Icon>
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Overview_Step_4}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Overview_Step_4_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                    </HBox>
+                    <HBox justifyContent="End" class="campOverviewActions">
+                        <Button text="{i18n>Overview_Open_Pricing}" icon="sap-icon://lead" press="onOpenPricing" class="sapUiTinyMarginEnd" />
+                        <Button text="{i18n>Camp_Create}" icon="sap-icon://add" type="Emphasized" press="onCreate" />
+                    </HBox>
+                </VBox>
+
+                <!-- Design principles -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Overview_Principles}" titleStyle="H5" class="campCardTitle" />
+                    <Text text="{i18n>Overview_Principles_Text}" class="campGuideCheck" />
+                </VBox>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

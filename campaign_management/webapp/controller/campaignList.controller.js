@@ -1,20 +1,19 @@
 sap.ui.define([
     "sap/ui/core/mvc/Controller",
     "sap/ui/model/json/JSONModel",
-    "sap/ui/model/Sorter",
     "sap/ui/model/Filter",
     "sap/m/MessageBox",
     "sap/ui/core/format/DateFormat",
     "com/luxasia/campaignmanagement/util/campaignService",
     "com/luxasia/campaignmanagement/util/backNavGuard"
-], function (Controller, JSONModel, Sorter, Filter, MessageBox, DateFormat, campaignService, backNavGuard) {
+], function (Controller, JSONModel, Filter, MessageBox, DateFormat, campaignService, backNavGuard) {
     "use strict";
 
     // Campaign list (FDD §5 "Campaign list"): filter by campaign ID / description, country,
-    // created by and created on; create, display, change, pricing; sorting and export. Laid out like the
+    // created by and created on; create, display, change and pricing. Laid out like the
     // Store Transfer inbox: overview counts, filter bar, then status tabs over one table.
-    // The list is the app's start page: Back (shell or browser) asks "leave this page?" like the other
-    // screens and then leaves the app.
+    // Route: campaigns (the Overview is the start page). Back (shell or browser) asks "leave this page?"
+    // like the other screens and then goes back in the history.
     return Controller.extend("com.luxasia.campaignmanagement.controller.campaignList", {
         // Campaign dates are local calendar dates (see campaignService), so no SGT conversion here.
         formatDate: function (oDate) {
@@ -107,39 +106,6 @@ sap.ui.define([
             this._load(this._readFilterControls());
         },
 
-        onSort: function () {
-            var oBinding = this.byId("campTable").getBinding("items");
-            this._bSortAsc = !this._bSortAsc;
-            oBinding.sort(new Sorter("id", !this._bSortAsc));
-        },
-
-        onExport: function () {
-            var that = this;
-            var aRows = this.byId("campTable").getBinding("items").getContexts(0, Infinity).map(function (c) {
-                var o = c.getObject();
-                return Object.assign({}, o, { createdOnText: that.formatDate(o.createdOn) });
-            });
-            sap.ui.require(["sap/ui/export/Spreadsheet"], function (Spreadsheet) {
-                var oSheet = new Spreadsheet({
-                    workbook: {
-                        columns: [
-                            { label: that._i18n("Camp_Id"), property: "id" },
-                            { label: that._i18n("Camp_Description"), property: "description" },
-                            { label: that._i18n("Camp_Country"), property: "country" },
-                            { label: that._i18n("Camp_Created_On"), property: "createdOnText" },
-                            { label: that._i18n("Camp_Created_By"), property: "createdBy" },
-                            { label: that._i18n("Camp_Status"), property: "status" }
-                        ]
-                    },
-                    dataSource: aRows,
-                    fileName: "Campaigns.xlsx"
-                });
-                oSheet.build().finally(function () {
-                    oSheet.destroy();
-                });
-            });
-        },
-
         _idFromEvent: function (oEvent) {
             return oEvent.getSource().getBindingContext("CampModel").getProperty("id");
         },
@@ -149,8 +115,8 @@ sap.ui.define([
             this.getOwnerComponent().getRouter().navTo(sRoute, oParams || {});
         },
 
-        // Leaving the start page goes back out of the app (launchpad), after the same popup as the
-        // other screens.
+        // Back goes to the previous history entry (Overview, or the launchpad on a deep link), after
+        // the same popup as the other screens.
         handleBackButton: function (event) {
             if (event && typeof event.preventDefault === "function") {
                 event.preventDefault();
@@ -180,24 +146,6 @@ sap.ui.define([
         // Pricing conditions of the campaign (prototype "Pricing" row action).
         onPricing: function (oEvent) {
             this._navTo("campaignPricing", { campaignId: this._idFromEvent(oEvent) });
-        },
-
-        // Toolbar "Pricing": opens the pricing screen for the first campaign shown in the table
-        // (the campaign can be switched there).
-        onPricingOpen: function () {
-            var oItem = this.byId("campTable").getItems()[0];
-            if (oItem) {
-                this._navTo("campaignPricing", { campaignId: oItem.getBindingContext("CampModel").getProperty("id") });
-            }
-        },
-
-        // Axxx key configuration (administrator function, FDD Addendum v1.1 §20).
-        onPricingConfig: function () {
-            this._navTo("pricingConfig");
-        },
-
-        onDeveloperGuide: function () {
-            this._navTo("developerGuide");
         }
     });
 });

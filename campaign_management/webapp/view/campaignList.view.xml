@@ -5,11 +5,11 @@
     xmlns:fb="sap.ui.comp.filterbar">
     <Page id="campaignListPage" showHeader="false">
         <content>
-            <!-- Luxasia header bar, same as the country selection app -->
-            <OverflowToolbar class="headers">
-                <Text text="{i18n>Luxasia}" class="mainmenutext" />
+            <!-- Page header: breadcrumb as in the prototype -->
+            <OverflowToolbar class="campHeader">
+                <Text text="{i18n>Crumb_Campaigns}" class="campCrumb" />
                 <ToolbarSpacer />
-                <Button icon="sap-icon://refresh" tooltip="{i18n>Camp_Refresh}" press="onSearch" type="Transparent" class="headerBtn" />
+                <Button icon="sap-icon://refresh" tooltip="{i18n>Camp_Refresh}" press="onSearch" type="Transparent" />
             </OverflowToolbar>
             <!-- Overview cards (prototype "Overview": campaign counts) -->
             <HBox wrap="Wrap" class="campKpiRow">
@@ -80,13 +80,6 @@
                             <OverflowToolbar>
                                 <Title text="{i18n>Camp_Campaigns} ({view>/shown})" />
                                 <ToolbarSpacer />
-                                <Button icon="sap-icon://sort" tooltip="{i18n>Camp_Sort}" press="onSort" />
-                                <Button icon="sap-icon://excel-attachment" tooltip="{i18n>Camp_Export}" press="onExport"
-                                    enabled="{= ${view>/shown} > 0 }" />
-                                <Button text="{i18n>Pricing_Config_Open}" icon="sap-icon://action-settings" press="onPricingConfig" />
-                                <Button text="{i18n>Guide_Open}" icon="sap-icon://document-text" press="onDeveloperGuide" />
-                                <Button text="{i18n>Camp_Pricing}" icon="sap-icon://lead" press="onPricingOpen"
-                                    enabled="{= ${view>/shown} > 0 }" />
                                 <Button text="{i18n>Camp_Create}" icon="sap-icon://add" type="Emphasized" press="onCreate" />
                             </OverflowToolbar>
                         </headerToolbar>

@@ -9,10 +9,9 @@
         busy="{camp>/busy}"
         busyIndicatorDelay="0">
         <m:customHeader>
-            <!-- Luxasia header bar, same as the campaign list and the country selection app -->
-            <m:OverflowToolbar class="headers">
-                <m:Button icon="sap-icon://nav-back" tooltip="{i18n>Camp_Back}" press="onNavBack" type="Transparent" class="headerBtn" />
-                <m:Text text="{i18n>Luxasia}" class="mainmenutext" />
+            <!-- Page header: breadcrumb as in the prototype (Back is in the app header) -->
+            <m:OverflowToolbar class="campHeader">
+                <m:Text text="{i18n>Crumb_Detail}" class="campCrumb" />
                 <m:ToolbarSpacer />
             </m:OverflowToolbar>
         </m:customHeader>
