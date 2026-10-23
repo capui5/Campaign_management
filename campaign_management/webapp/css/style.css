@@ -112,3 +112,39 @@
 .campPageTitle.sapMTitle {
     margin-bottom: 0.5rem;
 }
+
+/* Developer guide - prototype flow boxes (equal width, stacked on small screens) */
+.campGuideStep {
+    height: 100%;
+    padding: 1rem;
+    text-align: center;
+    background: #eff6fb;
+    border: 1px solid #cfe2f0;
+    border-radius: 0.375rem;
+    box-sizing: border-box;
+}
+.campGuideStepTitle.sapMText {
+    font-weight: bold;
+}
+.campGuideStepSub.sapMText {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--sapContent_LabelColor, #667789);
+}
+.campGuideArrow {
+    margin: 0 0.5rem;
+    color: #667788;
+}
+.campGuideCheck.sapMText {
+    display: block;
+    margin-bottom: 0.75rem;
+}
+@media (max-width: 950px) {
+    .campGuideFlow.sapMFlexBox {
+        flex-direction: column;
+    }
+    .campGuideArrow {
+        margin: 0.5rem 0;
+        transform: rotate(90deg);
+    }
+}

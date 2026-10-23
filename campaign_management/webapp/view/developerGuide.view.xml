@@ -1,0 +1,102 @@
+<mvc:View controllerName="com.luxasia.campaignmanagement.controller.developerGuide"
+    xmlns:mvc="sap.ui.core.mvc" displayBlock="true"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+    <Page id="developerGuidePage">
+        <customHeader>
+            <!-- Luxasia header bar, same as the campaign list and the country selection app -->
+            <OverflowToolbar class="headers">
+                <Button icon="sap-icon://nav-back" tooltip="{i18n>Camp_Back}" press="onNavBack" type="Transparent" class="headerBtn" />
+                <Text text="{i18n>Luxasia}" class="mainmenutext" />
+                <ToolbarSpacer />
+            </OverflowToolbar>
+        </customHeader>
+        <content>
+            <VBox class="campPage">
+                <Title text="{i18n>Guide_Title}" titleStyle="H3" class="campPageTitle" />
+                <Text text="{i18n>Guide_Lead}" class="campLead" />
+
+                <!-- Application navigation -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Guide_Navigation}" titleStyle="H5" class="campCardTitle" />
+                    <HBox alignItems="Stretch" class="campGuideFlow">
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Guide_Step_List}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Guide_Step_List_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                        <core:Icon src="sap-icon://arrow-right" class="campGuideArrow">
+                            <core:layoutData><FlexItemData alignSelf="Center" /></core:layoutData>
+                        </core:Icon>
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Guide_Step_Detail}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Guide_Step_Detail_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                        <core:Icon src="sap-icon://arrow-right" class="campGuideArrow">
+                            <core:layoutData><FlexItemData alignSelf="Center" /></core:layoutData>
+                        </core:Icon>
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Guide_Step_Pricing}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Guide_Step_Pricing_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                        <core:Icon src="sap-icon://arrow-right" class="campGuideArrow">
+                            <core:layoutData><FlexItemData alignSelf="Center" /></core:layoutData>
+                        </core:Icon>
+                        <VBox class="campGuideStep">
+                            <layoutData><FlexItemData growFactor="1" baseSize="0" /></layoutData>
+                            <Text text="{i18n>Guide_Step_Review}" class="campGuideStepTitle" />
+                            <Text text="{i18n>Guide_Step_Review_Sub}" class="campGuideStepSub" />
+                        </VBox>
+                    </HBox>
+                </VBox>
+
+                <!-- Proposed OData service contracts -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Guide_Services}" titleStyle="H5" class="campCardTitle" />
+                    <Table inset="false">
+                        <columns>
+                            <Column><Text text="{i18n>Guide_Service}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Guide_Operation}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Guide_Purpose}" /></Column>
+                        </columns>
+                        <items>
+                            <ColumnListItem>
+                                <Text text="ZUI_CAMPAIGN_MGMT" class="campCode" />
+                                <Text text="GET / POST / PATCH" />
+                                <Text text="{i18n>Guide_Svc_Campaign}" />
+                            </ColumnListItem>
+                            <ColumnListItem>
+                                <Text text="ZUI_CAMP_PRICING" class="campCode" />
+                                <Text text="GET / POST / PATCH" />
+                                <Text text="{i18n>Guide_Svc_Pricing}" />
+                            </ColumnListItem>
+                            <ColumnListItem>
+                                <Text text="ZUI_CAMP_CONFIG" class="campCode" />
+                                <Text text="GET / PATCH" />
+                                <Text text="{i18n>Guide_Svc_Config}" />
+                            </ColumnListItem>
+                            <ColumnListItem>
+                                <Text text="ZUI_CAMP_VALUEHELP" class="campCode" />
+                                <Text text="GET" />
+                                <Text text="{i18n>Guide_Svc_ValueHelp}" />
+                            </ColumnListItem>
+                        </items>
+                    </Table>
+                </VBox>
+
+                <!-- Developer checkpoints -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Guide_Checkpoints}" titleStyle="H5" class="campCardTitle" />
+                    <Text text="{i18n>Guide_Check_1}" class="campGuideCheck" />
+                    <Text text="{i18n>Guide_Check_2}" class="campGuideCheck" />
+                    <Text text="{i18n>Guide_Check_3}" class="campGuideCheck" />
+                    <Text text="{i18n>Guide_Check_4}" class="campGuideCheck" />
+                    <Text text="{i18n>Guide_Check_5}" class="campGuideCheck" />
+                    <Text text="{i18n>Guide_Check_6}" class="campGuideCheck" />
+                </VBox>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

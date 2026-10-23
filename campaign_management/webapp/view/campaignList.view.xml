@@ -84,6 +84,9 @@
                                 <Button icon="sap-icon://excel-attachment" tooltip="{i18n>Camp_Export}" press="onExport"
                                     enabled="{= ${view>/shown} > 0 }" />
                                 <Button text="{i18n>Pricing_Config_Open}" icon="sap-icon://action-settings" press="onPricingConfig" />
+                                <Button text="{i18n>Guide_Open}" icon="sap-icon://document-text" press="onDeveloperGuide" />
+                                <Button text="{i18n>Camp_Pricing}" icon="sap-icon://lead" press="onPricingOpen"
+                                    enabled="{= ${view>/shown} > 0 }" />
                                 <Button text="{i18n>Camp_Create}" icon="sap-icon://add" type="Emphasized" press="onCreate" />
                             </OverflowToolbar>
                         </headerToolbar>

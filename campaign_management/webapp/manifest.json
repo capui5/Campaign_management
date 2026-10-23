@@ -147,6 +147,13 @@
           "target": [
             "pricingConfig"
           ]
+        },
+        {
+          "name": "developerGuide",
+          "pattern": "developerGuide",
+          "target": [
+            "developerGuide"
+          ]
         }
       ],
       "targets": {
@@ -165,6 +172,10 @@
         "pricingConfig": {
           "id": "pricingConfig",
           "name": "pricingConfig"
+        },
+        "developerGuide": {
+          "id": "developerGuide",
+          "name": "developerGuide"
         }
       }
     },

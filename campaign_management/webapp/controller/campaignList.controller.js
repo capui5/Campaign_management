@@ -182,9 +182,22 @@ sap.ui.define([
             this._navTo("campaignPricing", { campaignId: this._idFromEvent(oEvent) });
         },
 
+        // Toolbar "Pricing": opens the pricing screen for the first campaign shown in the table
+        // (the campaign can be switched there).
+        onPricingOpen: function () {
+            var oItem = this.byId("campTable").getItems()[0];
+            if (oItem) {
+                this._navTo("campaignPricing", { campaignId: oItem.getBindingContext("CampModel").getProperty("id") });
+            }
+        },
+
         // Axxx key configuration (administrator function, FDD Addendum v1.1 §20).
         onPricingConfig: function () {
             this._navTo("pricingConfig");
+        },
+
+        onDeveloperGuide: function () {
+            this._navTo("developerGuide");
         }
     });
 });
