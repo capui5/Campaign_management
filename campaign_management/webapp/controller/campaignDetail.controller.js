@@ -4,14 +4,18 @@ sap.ui.define([
     "sap/m/MessageBox",
     "sap/ui/core/format/DateFormat",
     "com/luxasia/campaignmanagement/util/campaignService",
+    "com/luxasia/campaignmanagement/util/pricingService",
+    "com/luxasia/campaignmanagement/util/pricingFormatter",
     "com/luxasia/campaignmanagement/util/backNavGuard"
-], function (Controller, JSONModel, MessageBox, DateFormat, campaignService, backNavGuard) {
+], function (Controller, JSONModel, MessageBox, DateFormat, campaignService, pricingService, pricingFormatter, backNavGuard) {
     "use strict";
 
-    // Campaign create / change / display (FDD §4.1, §4.3, §5 "General tab" and "History tab").
+    // Campaign create / change / display (FDD §4.1, §4.3, §5 "General tab", "Pricing tab" and "History tab").
     // Routes: campaignCreate (new) and campaignDetail/{campaignId}: the list's Display button opens it
     // read-only, its Change button adds ?mode=edit to open it in edit mode.
     // Campaign ID and creation metadata are read-only; only description and country are editable.
+    // The Pricing Conditions section lists the condition records linked to a saved campaign; they are
+    // maintained on the campaignPricing screen.
     return Controller.extend("com.luxasia.campaignmanagement.controller.campaignDetail", {
         // Campaign dates are local calendar dates (see campaignService), so no SGT conversion here.
         formatDate: function (oDate) {
@@ -39,6 +43,8 @@ sap.ui.define([
                 original: {},
                 display: {},
                 history: [],
+                conditions: [],
+                pricing: { total: 0, saved: 0, open: 0 },
                 state: { description: "None", country: "None" },
                 stateText: { description: "", country: "" }
             };
@@ -87,7 +93,9 @@ sap.ui.define([
             var oQuery = oArgs["?query"] || {};
             var oModel = this._model();
             oModel.setData(Object.assign(this._emptyState(), { isNew: false, edit: oQuery.mode === "edit" }));
+            this._sPricingFor = oArgs.campaignId;
             this._loadCampaign(oArgs.campaignId);
+            this._loadPricing(oArgs.campaignId);
             backNavGuard.arm(this);
         },
 
@@ -123,6 +131,43 @@ sap.ui.define([
             });
         },
 
+        // Condition records linked to the campaign (S/4 records plus this session's drafts).
+        _loadPricing: function (sId) {
+            var that = this;
+            var oModel = this._model();
+            return pricingService.init(this.getOwnerComponent()).then(function () {
+                return pricingService.loadConditions(sId);
+            }).then(function (aRows) {
+                // Ignore a late answer for a campaign that is no longer shown.
+                if (oModel.getProperty("/isNew") || that._sPricingFor !== sId) {
+                    return;
+                }
+                that._showPricing(aRows);
+            }).catch(function (oError) {
+                MessageBox.error(oError.message);
+            });
+        },
+
+        _showPricing: function (aRows) {
+            var that = this;
+            var oModel = this._model();
+            var nSaved = aRows.filter(function (o) { return o.status === pricingService.STATUS.SAVED; }).length;
+            oModel.setProperty("/conditions", aRows.map(function (o) {
+                return Object.assign({}, o, {
+                    combinationText: pricingFormatter.combination.call(that, o.combination),
+                    scopeText: pricingFormatter.scope.call(that, o.combination, o.customer, o.article, o.brand, o.hierarchy),
+                    valueText: pricingFormatter.value(o.rate, o.rateUnit, o.pricingUnit, o.uom),
+                    validityText: pricingFormatter.validity(o.validFrom, o.validTo),
+                    statusText: pricingFormatter.status.call(that, o.status)
+                });
+            }));
+            oModel.setProperty("/pricing", { total: aRows.length, saved: nSaved, open: aRows.length - nSaved });
+            var oCampaign = oModel.getProperty("/original");
+            if (oCampaign && oCampaign.id) {
+                oModel.setProperty("/history", this._history(oCampaign));
+            }
+        },
+
         // Campaign ID text; a new campaign shows that S/4 generates it on save (§10).
         _refreshDisplay: function () {
             var oModel = this._model();
@@ -141,6 +186,16 @@ sap.ui.define([
             if (o.changedOn || o.changedBy) {
                 aEvents.push({ event: this._i18n("Camp_History_Changed"), user: o.changedBy, date: o.changedOn });
             }
+            var that = this;
+            (this._model().getProperty("/conditions") || []).forEach(function (c) {
+                if (c.status === pricingService.STATUS.SAVED) {
+                    aEvents.push({
+                        event: that._i18n("Camp_History_Pricing", [c.conditionType, c.combination, c.recordNo]),
+                        user: c.createdBy,
+                        date: c.createdOn
+                    });
+                }
+            });
             return aEvents;
         },
 
@@ -232,6 +287,30 @@ sap.ui.define([
                 that._showMessages(oError.messages || [{ text: oError.message }]);
             }).finally(function () {
                 oModel.setProperty("/busy", false);
+            });
+        },
+
+        // Opens the pricing screen of this campaign; unsaved campaign changes need the leave popup.
+        onMaintainPricing: function () {
+            var that = this;
+            var oModel = this._model();
+            var fnGo = function () {
+                backNavGuard.disarm();
+                that.getOwnerComponent().getRouter().navTo("campaignPricing", {
+                    campaignId: oModel.getProperty("/original/id"),
+                    "?query": { from: "detail" }
+                });
+            };
+            if (!oModel.getProperty("/edit") || !this._hasChanges()) {
+                fnGo();
+                return;
+            }
+            MessageBox.confirm(this._i18n("sure_leave_page"), {
+                onClose: function (sAction) {
+                    if (sAction === MessageBox.Action.OK) {
+                        fnGo();
+                    }
+                }
             });
         },
 

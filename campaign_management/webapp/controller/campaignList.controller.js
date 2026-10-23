@@ -5,14 +5,16 @@ sap.ui.define([
     "sap/ui/model/Filter",
     "sap/m/MessageBox",
     "sap/ui/core/format/DateFormat",
-    "com/luxasia/campaignmanagement/util/campaignService"
-], function (Controller, JSONModel, Sorter, Filter, MessageBox, DateFormat, campaignService) {
+    "com/luxasia/campaignmanagement/util/campaignService",
+    "com/luxasia/campaignmanagement/util/backNavGuard"
+], function (Controller, JSONModel, Sorter, Filter, MessageBox, DateFormat, campaignService, backNavGuard) {
     "use strict";
 
     // Campaign list (FDD §5 "Campaign list"): filter by campaign ID / description, country,
-    // created by and created on; create, display, change; sorting and export. Laid out like the
+    // created by and created on; create, display, change, pricing; sorting and export. Laid out like the
     // Store Transfer inbox: overview counts, filter bar, then status tabs over one table.
-    // The list is the app's start page, so it has no back navigation of its own.
+    // The list is the app's start page: Back (shell or browser) asks "leave this page?" like the other
+    // screens and then leaves the app.
     return Controller.extend("com.luxasia.campaignmanagement.controller.campaignList", {
         // Campaign dates are local calendar dates (see campaignService), so no SGT conversion here.
         formatDate: function (oDate) {
@@ -32,12 +34,10 @@ sap.ui.define([
             var that = this;
             var oViewModel = this.getView().getModel("view");
             oViewModel.setProperty("/busy", true);
+            backNavGuard.arm(this);
             campaignService.init(this.getOwnerComponent()).then(function () {
                 that.getView().setModel(campaignService.getModel(), "CampModel");
-                // First visit: start with the location's country.
-                if (!that._oCriteria) {
-                    that._setDefaultCountry();
-                }
+                // First visit shows all countries; the country filter applies only when selected.
                 return that._load(that._oCriteria || that._readFilterControls());
             }).catch(function (oError) {
                 oViewModel.setProperty("/busy", false);
@@ -97,16 +97,10 @@ sap.ui.define([
             this._load(this._readFilterControls());
         },
 
-        _setDefaultCountry: function () {
-            var sCountry = campaignService.getDefaultCountry();
-            this.byId("fltCountry").setSelectedKeys(sCountry ? [sCountry] : []);
-        },
-
-        // Clear resets the filters and the status tab; country goes back to the location's country,
-        // so the table shows all campaigns of that country.
+        // Clear resets the filters and the status tab, so the table shows the campaigns of all countries.
         onClearFilters: function () {
             this.byId("fltCampaign").setValue("");
-            this._setDefaultCountry();
+            this.byId("fltCountry").setSelectedKeys([]);
             this.byId("fltCreatedBy").setValue("");
             this.byId("fltCreatedOn").setValue("");
             this.getView().getModel("view").setProperty("/tab", "all");
@@ -151,7 +145,22 @@ sap.ui.define([
         },
 
         _navTo: function (sRoute, oParams) {
+            backNavGuard.disarm();
             this.getOwnerComponent().getRouter().navTo(sRoute, oParams || {});
+        },
+
+        // Leaving the start page goes back out of the app (launchpad), after the same popup as the
+        // other screens.
+        handleBackButton: function (event) {
+            if (event && typeof event.preventDefault === "function") {
+                event.preventDefault();
+            }
+            if (!confirm(this._i18n("sure_leave_page"))) {
+                backNavGuard.rearm();
+                return;
+            }
+            backNavGuard.disarm();
+            window.history.go(-1);
         },
 
         onCreate: function () {
@@ -166,6 +175,16 @@ sap.ui.define([
 
         onChange: function (oEvent) {
             this._navTo("campaignDetail", { campaignId: this._idFromEvent(oEvent), "?query": { mode: "edit" } });
+        },
+
+        // Pricing conditions of the campaign (prototype "Pricing" row action).
+        onPricing: function (oEvent) {
+            this._navTo("campaignPricing", { campaignId: this._idFromEvent(oEvent) });
+        },
+
+        // Axxx key configuration (administrator function, FDD Addendum v1.1 §20).
+        onPricingConfig: function () {
+            this._navTo("pricingConfig");
         }
     });
 });

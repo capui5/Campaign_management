@@ -3,12 +3,14 @@
     xmlns="sap.m"
     xmlns:core="sap.ui.core"
     xmlns:fb="sap.ui.comp.filterbar">
-    <Page id="campaignListPage"
-        title="{i18n>Camp_Title}">
-        <headerContent>
-            <Button icon="sap-icon://refresh" tooltip="{i18n>Camp_Refresh}" press="onSearch" />
-        </headerContent>
+    <Page id="campaignListPage" showHeader="false">
         <content>
+            <!-- Luxasia header bar, same as the country selection app -->
+            <OverflowToolbar class="headers">
+                <Text text="{i18n>Luxasia}" class="mainmenutext" />
+                <ToolbarSpacer />
+                <Button icon="sap-icon://refresh" tooltip="{i18n>Camp_Refresh}" press="onSearch" type="Transparent" class="headerBtn" />
+            </OverflowToolbar>
             <!-- Overview cards (prototype "Overview": campaign counts) -->
             <HBox wrap="Wrap" class="campKpiRow">
                 <VBox class="campKpiCard">
@@ -81,6 +83,7 @@
                                 <Button icon="sap-icon://sort" tooltip="{i18n>Camp_Sort}" press="onSort" />
                                 <Button icon="sap-icon://excel-attachment" tooltip="{i18n>Camp_Export}" press="onExport"
                                     enabled="{= ${view>/shown} > 0 }" />
+                                <Button text="{i18n>Pricing_Config_Open}" icon="sap-icon://action-settings" press="onPricingConfig" />
                                 <Button text="{i18n>Camp_Create}" icon="sap-icon://add" type="Emphasized" press="onCreate" />
                             </OverflowToolbar>
                         </headerToolbar>
@@ -90,7 +93,8 @@
                             <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Camp_Created_On}" /></Column>
                             <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Camp_Created_By}" /></Column>
                             <Column><Text text="{i18n>Camp_Status}" /></Column>
-                            <Column hAlign="End"><Text text="" /></Column>
+                            <!-- Wide enough for Display / Change / Pricing, so no button is cut off -->
+                            <Column hAlign="End" width="22rem"><Text text="" /></Column>
                         </columns>
                         <items>
                             <ColumnListItem type="Inactive">
@@ -101,8 +105,9 @@
                                     <Text text="{CampModel>createdBy}" />
                                     <ObjectStatus text="{CampModel>status}" state="{CampModel>statusState}" inverted="true" />
                                     <HBox justifyContent="End">
-                                        <Button text="{i18n>Camp_Display}" icon="sap-icon://display" press="onDisplay" />
+                                        <Button text="{i18n>Camp_Display}" icon="sap-icon://show" press="onDisplay" />
                                         <Button text="{i18n>Camp_Change}" icon="sap-icon://edit" type="Emphasized" press="onChange" class="sapUiTinyMarginBegin" />
+                                        <Button text="{i18n>Camp_Pricing}" icon="sap-icon://lead" press="onPricing" class="sapUiTinyMarginBegin" />
                                     </HBox>
                                 </cells>
                             </ColumnListItem>

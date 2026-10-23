@@ -36,3 +36,79 @@
 .campSteps .sapMObjectStatus {
     padding: 0.25rem 0.5rem;
 }
+
+/* Pricing screens - prototype cards */
+.campPage {
+    padding: 1.25rem 2.5rem 2rem;
+    box-sizing: border-box;
+}
+@media (max-width: 600px) {
+    .campPage {
+        padding: 1rem;
+    }
+}
+.campLead {
+    display: block;
+    margin-bottom: 1rem;
+    color: var(--sapContent_LabelColor, #667789);
+}
+.campCard {
+    margin-bottom: 1.25rem;
+    padding: 1.25rem 1.375rem;
+    background: var(--sapTile_Background, #fff);
+    border: 1px solid var(--sapTile_BorderColor, #dce3eb);
+    border-radius: 0.75rem;
+    box-shadow: var(--sapContent_Shadow0, 0 2px 8px rgba(23, 54, 83, 0.04));
+}
+.campCardTitle.sapMTitle {
+    margin-bottom: 0.75rem;
+}
+.campFieldGrid > div > .sapMFlexBox {
+    margin-bottom: 0.75rem;
+}
+.campFieldGrid .sapMLabel {
+    margin-bottom: 0.25rem;
+}
+/* Key combinations as selectable cards */
+.campComboGroup .sapMRb {
+    width: calc(100% - 0.5rem);
+    margin: 0.25rem;
+    border: 1px solid var(--sapTile_BorderColor, #dce3eb);
+    border-radius: 0.5rem;
+}
+.campComboGroup .sapMRb.sapMRbSel {
+    border-color: var(--sapSelectedColor, #0866b1);
+    background: var(--sapList_SelectionBackgroundColor, #edf7ff);
+}
+.campRowMessage.sapMText {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--sapNegativeTextColor, #bb3a3a);
+}
+.campCode.sapMText {
+    font-family: var(--sapFontFamilyMono, Consolas, monospace);
+    color: var(--sapLinkColor, #205a85);
+}
+
+/* Luxasia header bar (same as the country selection app) */
+.headers.sapMIBar {
+    background: black;
+    height: 50px;
+    border-bottom: none;
+}
+.headers.sapMTBStandard {
+    border-bottom: none;
+}
+.mainmenutext {
+    padding: 5px;
+    color: white;
+    font-size: large;
+    font-weight: bold;
+}
+.headers .headerBtn .sapMBtnIcon,
+.headers .headerBtn .sapMBtnContent {
+    color: white;
+}
+.campPageTitle.sapMTitle {
+    margin-bottom: 0.5rem;
+}

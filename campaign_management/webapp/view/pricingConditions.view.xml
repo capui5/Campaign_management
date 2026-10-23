@@ -1,0 +1,206 @@
+<mvc:View controllerName="com.luxasia.campaignmanagement.controller.pricingConditions"
+    xmlns:mvc="sap.ui.core.mvc" displayBlock="true"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:l="sap.ui.layout">
+    <Page id="pricingConditionsPage"
+        busy="{pricing>/busy}"
+        busyIndicatorDelay="0">
+        <customHeader>
+            <!-- Luxasia header bar, same as the campaign list and the country selection app -->
+            <OverflowToolbar class="headers">
+                <Button icon="sap-icon://nav-back" tooltip="{i18n>Camp_Back}" press="onNavBack" type="Transparent" class="headerBtn" />
+                <Text text="{i18n>Luxasia}" class="mainmenutext" />
+                <ToolbarSpacer />
+                <Button icon="sap-icon://action-settings" text="{i18n>Pricing_Config_Open}" press="onOpenConfig" type="Transparent" class="headerBtn" />
+            </OverflowToolbar>
+        </customHeader>
+        <content>
+            <VBox class="campPage">
+                <Title text="{i18n>Pricing_Title}" titleStyle="H3" class="campPageTitle" />
+                <Text text="{i18n>Pricing_Lead}" class="campLead" />
+
+                <!-- 1. Campaign & condition type -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Pricing_Step1}" titleStyle="H5" class="campCardTitle" />
+                    <l:Grid defaultSpan="XL4 L4 M6 S12" vSpacing="0" class="campFieldGrid">
+                        <VBox>
+                            <Label text="{i18n>Camp_Campaign}" labelFor="pricingCampaign" required="true" />
+                            <Select id="pricingCampaign" width="100%" selectedKey="{pricing>/campaignId}" change="onCampaignChange"
+                                items="{path: 'pricing>/campaigns', templateShareable: false}">
+                                <core:Item key="{pricing>id}" text="{pricing>id} — {pricing>description}" />
+                            </Select>
+                        </VBox>
+                        <VBox>
+                            <Label text="{i18n>Pricing_Condition_Type}" labelFor="pricingType" required="true" />
+                            <Select id="pricingType" width="100%" selectedKey="{pricing>/draft/conditionType}" change="onTypeChange"
+                                items="{path: 'pricing>/types', templateShareable: false}">
+                                <core:Item key="{pricing>key}" text="{pricing>key} — {pricing>text}" />
+                            </Select>
+                        </VBox>
+                        <VBox>
+                            <Label text="{i18n>Pricing_Config_Table}" labelFor="pricingTable" />
+                            <Input id="pricingTable" value="{pricing>/tableText}" editable="false" />
+                        </VBox>
+                    </l:Grid>
+                </VBox>
+
+                <!-- 2. Key combination: only active combinations of the selected condition type -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Pricing_Step2}" titleStyle="H5" class="campCardTitle" />
+                    <RadioButtonGroup id="pricingCombination" columns="2" width="100%" class="campComboGroup"
+                        selectedIndex="{pricing>/combinationIndex}" select="onCombinationSelect"
+                        valueState="{pricing>/state/combination}"
+                        buttons="{path: 'pricing>/combinations', templateShareable: false}">
+                        <RadioButton text="{pricing>key} · {pricing>text}" />
+                    </RadioButtonGroup>
+                    <Text text="{i18n>Pricing_No_Combination}" visible="{= ${pricing>/combinations}.length === 0 }" class="sapUiSmallMarginTop" />
+                </VBox>
+
+                <!-- 3. Condition details: key fields follow the selected combination -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Pricing_Step3}" titleStyle="H5" class="campCardTitle" />
+                    <l:Grid defaultSpan="XL4 L4 M6 S12" vSpacing="0" class="campFieldGrid">
+                        <VBox>
+                            <Label text="{i18n>Pricing_Sales_Org}" labelFor="pricingSalesOrg" required="true" />
+                            <Input id="pricingSalesOrg" value="{pricing>/draft/salesOrg}" maxLength="4" placeholder="{i18n>Pricing_Sales_Org_Placeholder}"
+                                valueState="{pricing>/state/salesOrg}" valueStateText="{pricing>/stateText/salesOrg}" liveChange="onFieldChange" />
+                        </VBox>
+                        <VBox>
+                            <Label text="{i18n>Pricing_Dist_Channel}" labelFor="pricingDistChannel" required="true" />
+                            <Input id="pricingDistChannel" value="{pricing>/draft/distChannel}" maxLength="2"
+                                valueState="{pricing>/state/distChannel}" valueStateText="{pricing>/stateText/distChannel}" liveChange="onFieldChange" />
+                        </VBox>
+                        <VBox>
+                            <Label text="{i18n>Camp_Id}" labelFor="pricingCampaignId" />
+                            <Input id="pricingCampaignId" value="{pricing>/draft/campaignId}" editable="false" />
+                        </VBox>
+                        <VBox visible="{pricing>/fields/brand}">
+                            <Label text="{i18n>Pricing_Hierarchy}" labelFor="pricingHierarchy" />
+                            <Input id="pricingHierarchy" value="{pricing>/draft/hierarchy}" editable="false"
+                                valueState="{pricing>/state/hierarchy}" valueStateText="{pricing>/stateText/hierarchy}" />
+                        </VBox>
+                        <VBox visible="{pricing>/fields/brand}">
+                            <Label text="{i18n>Pricing_Brand}" labelFor="pricingBrand" required="true" />
+                            <Input id="pricingBrand" value="{pricing>/draft/brand}" maxLength="4" showSuggestion="true"
+                                placeholder="{i18n>Pricing_Brand_Placeholder}"
+                                suggestionItems="{path: 'PricingModel>/brands', sorter: {path: 'text'}, templateShareable: false}"
+                                suggestionItemSelected="onBrandSelected"
+                                valueState="{pricing>/state/brand}" valueStateText="{pricing>/stateText/brand}" liveChange="onFieldChange">
+                                <suggestionItems>
+                                    <core:ListItem key="{PricingModel>key}" text="{PricingModel>key}" additionalText="{PricingModel>text}" />
+                                </suggestionItems>
+                            </Input>
+                        </VBox>
+                        <VBox visible="{pricing>/fields/customer}">
+                            <Label text="{i18n>Pricing_Customer}" labelFor="pricingCustomer" required="true" />
+                            <Input id="pricingCustomer" value="{pricing>/draft/customer}" maxLength="10"
+                                valueState="{pricing>/state/customer}" valueStateText="{pricing>/stateText/customer}" liveChange="onFieldChange" />
+                        </VBox>
+                        <VBox visible="{pricing>/fields/article}">
+                            <Label text="{i18n>Pricing_Article}" labelFor="pricingArticle" required="true" />
+                            <Input id="pricingArticle" value="{pricing>/draft/article}" maxLength="40"
+                                valueState="{pricing>/state/article}" valueStateText="{pricing>/stateText/article}" liveChange="onFieldChange" />
+                        </VBox>
+                        <VBox>
+                            <Label text="{i18n>Pricing_Valid_From}" labelFor="pricingValidFrom" required="true" />
+                            <DatePicker id="pricingValidFrom" dateValue="{pricing>/draft/validFrom}" displayFormat="dd-MM-yyyy"
+                                valueState="{pricing>/state/validFrom}" valueStateText="{pricing>/stateText/validFrom}" change="onFieldChange" />
+                        </VBox>
+                        <VBox>
+                            <Label text="{i18n>Pricing_Valid_To}" labelFor="pricingValidTo" required="true" />
+                            <DatePicker id="pricingValidTo" dateValue="{pricing>/draft/validTo}" displayFormat="dd-MM-yyyy"
+                                valueState="{pricing>/state/validTo}" valueStateText="{pricing>/stateText/validTo}" change="onFieldChange" />
+                        </VBox>
+                        <VBox>
+                            <Label text="{pricing>/rateLabel}" labelFor="pricingRate" required="true" />
+                            <Input id="pricingRate" value="{pricing>/draft/rate}" type="Number"
+                                valueState="{pricing>/state/rate}" valueStateText="{pricing>/stateText/rate}" liveChange="onFieldChange" />
+                        </VBox>
+                        <VBox>
+                            <Label text="{= ${pricing>/kind} === 'percent' ? ${i18n>Pricing_Unit} : ${i18n>Pricing_Currency} }" labelFor="pricingRateUnit"
+                                required="{= ${pricing>/kind} !== 'percent' }" />
+                            <Input id="pricingRateUnit" value="{pricing>/draft/rateUnit}" maxLength="5" editable="{= ${pricing>/kind} !== 'percent' }"
+                                valueState="{pricing>/state/rateUnit}" valueStateText="{pricing>/stateText/rateUnit}" liveChange="onFieldChange" />
+                        </VBox>
+                        <VBox visible="{= ${pricing>/kind} === 'price' }">
+                            <Label text="{i18n>Pricing_Pricing_Unit}" labelFor="pricingPricingUnit" required="true" />
+                            <Input id="pricingPricingUnit" value="{pricing>/draft/pricingUnit}" type="Number"
+                                valueState="{pricing>/state/pricingUnit}" valueStateText="{pricing>/stateText/pricingUnit}" liveChange="onFieldChange" />
+                        </VBox>
+                        <VBox visible="{= ${pricing>/kind} === 'price' }">
+                            <Label text="{i18n>Pricing_Uom}" labelFor="pricingUom" required="true" />
+                            <Input id="pricingUom" value="{pricing>/draft/uom}" maxLength="3"
+                                valueState="{pricing>/state/uom}" valueStateText="{pricing>/stateText/uom}" liveChange="onFieldChange" />
+                        </VBox>
+                    </l:Grid>
+                    <MessageStrip text="{i18n>Pricing_Sign_Hint}" type="Information" showIcon="true" class="sapUiSmallMarginTop"
+                        visible="{= ${pricing>/kind} !== 'price' }" />
+                    <MessageStrip text="{i18n>Pricing_Not_Configured}" type="Warning" showIcon="true" class="sapUiSmallMarginTop"
+                        visible="{= !${pricing>/configured} }" />
+                    <HBox justifyContent="End" class="sapUiSmallMarginTop">
+                        <Button text="{i18n>Pricing_Config_View}" press="onOpenConfig" />
+                        <Button text="{i18n>Pricing_Clear}" press="onClearDraft" class="sapUiTinyMarginBegin" />
+                        <Button text="{i18n>Pricing_Add_Draft}" icon="sap-icon://add" type="Emphasized" press="onAddDraft"
+                            class="sapUiTinyMarginBegin" enabled="{= ${pricing>/combinations}.length > 0 }" />
+                    </HBox>
+                </VBox>
+
+                <!-- 4. Records of the campaign: drafts, validation errors, S/4 record numbers -->
+                <VBox class="campCard">
+                    <Table id="pricingTableRecords"
+                        noDataText="{i18n>Pricing_No_Records}"
+                        items="{path: 'PricingModel>/conditions', templateShareable: false}"
+                        updateFinished="onRecordsUpdated">
+                        <headerToolbar>
+                            <OverflowToolbar style="Clear">
+                                <Title text="{i18n>Pricing_Step4} ({pricing>/shown})" titleStyle="H5" />
+                                <ToolbarSpacer />
+                                <Button icon="sap-icon://excel-attachment" tooltip="{i18n>Pricing_Export}" press="onExport"
+                                    enabled="{= ${pricing>/shown} > 0 }" />
+                                <Button text="{i18n>Pricing_Validate}" icon="sap-icon://validate" press="onValidate"
+                                    enabled="{= ${pricing>/shown} > 0 }" />
+                                <Button text="{i18n>Pricing_Save}" icon="sap-icon://save" type="Accept" press="onSave"
+                                    enabled="{= ${pricing>/shown} > 0 }" />
+                            </OverflowToolbar>
+                        </headerToolbar>
+                        <columns>
+                            <Column><Text text="{i18n>Pricing_Col_Type}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Pricing_Col_Combination}" /></Column>
+                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Pricing_Col_Sales_Area}" /></Column>
+                            <Column><Text text="{i18n>Pricing_Col_Scope}" /></Column>
+                            <Column hAlign="End"><Text text="{i18n>Pricing_Col_Value}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Pricing_Col_Validity}" /></Column>
+                            <Column><Text text="{i18n>Camp_Status}" /></Column>
+                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Pricing_Col_Record}" /></Column>
+                            <Column hAlign="End" width="6rem"><Text text="" /></Column>
+                        </columns>
+                        <items>
+                            <ColumnListItem>
+                                <cells>
+                                    <ObjectIdentifier title="{PricingModel>conditionType}" text="{path: 'PricingModel>conditionType', formatter: '.formatType'}" />
+                                    <Text text="{path: 'PricingModel>combination', formatter: '.formatCombination'}" />
+                                    <Text text="{PricingModel>salesOrg} / {PricingModel>distChannel}" />
+                                    <Text text="{parts: ['PricingModel>combination', 'PricingModel>customer', 'PricingModel>article', 'PricingModel>brand', 'PricingModel>hierarchy'], formatter: '.formatScope'}" />
+                                    <Text text="{parts: ['PricingModel>rate', 'PricingModel>rateUnit', 'PricingModel>pricingUnit', 'PricingModel>uom'], formatter: '.formatValue'}" />
+                                    <Text text="{parts: ['PricingModel>validFrom', 'PricingModel>validTo'], formatter: '.formatValidity'}" />
+                                    <VBox>
+                                        <ObjectStatus text="{path: 'PricingModel>status', formatter: '.formatStatus'}" state="{PricingModel>statusState}" inverted="true" />
+                                        <Text text="{PricingModel>message}" visible="{= !!${PricingModel>message} }" class="campRowMessage" />
+                                    </VBox>
+                                    <Text text="{PricingModel>recordNo}" />
+                                    <HBox justifyContent="End">
+                                        <Button icon="sap-icon://delete" type="Transparent" tooltip="{i18n>Pricing_Remove}" press="onRemoveRow"
+                                            visible="{= ${PricingModel>status} !== 'Saved' }" />
+                                        <Button icon="sap-icon://date-time" type="Transparent" tooltip="{i18n>Pricing_Delimit}" press="onDelimit"
+                                            visible="{= ${PricingModel>status} === 'Saved' }" />
+                                    </HBox>
+                                </cells>
+                            </ColumnListItem>
+                        </items>
+                    </Table>
+                </VBox>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

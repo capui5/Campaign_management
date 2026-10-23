@@ -5,12 +5,17 @@
     xmlns:core="sap.ui.core"
     xmlns:f="sap.ui.layout.form">
     <m:Page id="campaignDetailPage"
-        title="{= ${camp>/isNew} ? ${i18n>Camp_Create_Title} : ${i18n>Camp_Detail_Title} }"
-        showNavButton="true"
-        navButtonPress="onNavBack"
         showFooter="true"
         busy="{camp>/busy}"
         busyIndicatorDelay="0">
+        <m:customHeader>
+            <!-- Luxasia header bar, same as the campaign list and the country selection app -->
+            <m:OverflowToolbar class="headers">
+                <m:Button icon="sap-icon://nav-back" tooltip="{i18n>Camp_Back}" press="onNavBack" type="Transparent" class="headerBtn" />
+                <m:Text text="{i18n>Luxasia}" class="mainmenutext" />
+                <m:ToolbarSpacer />
+            </m:OverflowToolbar>
+        </m:customHeader>
         <ObjectPageLayout id="campDetailLayout" showTitleInHeaderContent="true" upperCaseAnchorBar="false">
             <headerTitle>
                 <ObjectPageDynamicHeaderTitle>
@@ -30,7 +35,7 @@
             </headerTitle>
             <headerContent>
                 <m:VBox>
-                    <!-- Prototype step indicator, campaign master only -->
+                    <!-- Prototype step indicator: campaign details, generated ID, pricing conditions -->
                     <m:HBox class="campSteps sapUiSmallMarginBottom" wrap="Wrap" alignItems="Center">
                         <m:ObjectStatus text="1 · {i18n>Camp_Step_Details}" inverted="true"
                             icon="{= ${camp>/isNew} ? 'sap-icon://edit' : 'sap-icon://accept' }"
@@ -39,6 +44,10 @@
                         <m:ObjectStatus text="2 · {i18n>Camp_Step_Saved}" inverted="true"
                             icon="{= ${camp>/isNew} ? 'sap-icon://pending' : 'sap-icon://accept' }"
                             state="{= ${camp>/isNew} ? 'None' : 'Success' }" />
+                        <core:Icon src="sap-icon://navigation-right-arrow" class="sapUiTinyMarginBeginEnd" />
+                        <m:ObjectStatus text="3 · {i18n>Camp_Step_Pricing}" inverted="true"
+                            icon="{= ${camp>/pricing/saved} > 0 ? 'sap-icon://accept' : ${camp>/pricing/open} > 0 ? 'sap-icon://edit' : 'sap-icon://pending' }"
+                            state="{= ${camp>/pricing/saved} > 0 ? 'Success' : ${camp>/pricing/open} > 0 ? 'Information' : 'None' }" />
                     </m:HBox>
                     <m:HBox wrap="Wrap">
                         <m:VBox class="sapUiMediumMarginEnd sapUiSmallMarginBottom">
@@ -86,6 +95,49 @@
                                     </f:SimpleForm>
                                     <m:MessageStrip text="{i18n>Camp_Country_Hint}" type="Information" showIcon="true"
                                         class="sapUiSmallMarginTop" visible="{camp>/edit}" />
+                                </m:VBox>
+                            </blocks>
+                        </ObjectPageSubSection>
+                    </subSections>
+                </ObjectPageSection>
+
+                <ObjectPageSection id="secPricing" title="{i18n>Camp_Tab_Pricing}" visible="{= !${camp>/isNew} }">
+                    <subSections>
+                        <ObjectPageSubSection>
+                            <blocks>
+                                <m:VBox>
+                                    <m:Table id="campPricingTable" noDataText="{i18n>Pricing_No_Records}" items="{camp>/conditions}">
+                                        <m:headerToolbar>
+                                            <m:OverflowToolbar style="Clear">
+                                                <m:Title text="{i18n>Camp_Pricing_Linked} ({camp>/pricing/total})" titleStyle="H6" />
+                                                <m:ToolbarSpacer />
+                                                <m:Button text="{i18n>Camp_Maintain_Pricing}" icon="sap-icon://add" type="Emphasized" press="onMaintainPricing" />
+                                            </m:OverflowToolbar>
+                                        </m:headerToolbar>
+                                        <m:columns>
+                                            <m:Column><m:Text text="{i18n>Pricing_Col_Type}" /></m:Column>
+                                            <m:Column minScreenWidth="Tablet" demandPopin="true"><m:Text text="{i18n>Pricing_Col_Combination}" /></m:Column>
+                                            <m:Column><m:Text text="{i18n>Pricing_Col_Scope}" /></m:Column>
+                                            <m:Column hAlign="End"><m:Text text="{i18n>Pricing_Col_Value}" /></m:Column>
+                                            <m:Column minScreenWidth="Tablet" demandPopin="true"><m:Text text="{i18n>Pricing_Col_Validity}" /></m:Column>
+                                            <m:Column><m:Text text="{i18n>Camp_Status}" /></m:Column>
+                                            <m:Column minScreenWidth="Desktop" demandPopin="true"><m:Text text="{i18n>Pricing_Col_Record}" /></m:Column>
+                                        </m:columns>
+                                        <m:items>
+                                            <m:ColumnListItem>
+                                                <m:cells>
+                                                    <m:Text text="{camp>conditionType}" />
+                                                    <m:Text text="{camp>combinationText}" />
+                                                    <m:Text text="{camp>scopeText}" />
+                                                    <m:Text text="{camp>valueText}" />
+                                                    <m:Text text="{camp>validityText}" />
+                                                    <m:ObjectStatus text="{camp>statusText}" state="{camp>statusState}" inverted="true" />
+                                                    <m:Text text="{camp>recordNo}" />
+                                                </m:cells>
+                                            </m:ColumnListItem>
+                                        </m:items>
+                                    </m:Table>
+                                    <m:MessageStrip text="{i18n>Camp_Pricing_Hint}" type="Information" showIcon="true" class="sapUiSmallMarginTop" />
                                 </m:VBox>
                             </blocks>
                         </ObjectPageSubSection>

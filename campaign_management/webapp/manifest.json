@@ -133,6 +133,20 @@
           "target": [
             "campaignDetail"
           ]
+        },
+        {
+          "name": "campaignPricing",
+          "pattern": "campaignPricing/{campaignId}:?query:",
+          "target": [
+            "pricingConditions"
+          ]
+        },
+        {
+          "name": "pricingConfig",
+          "pattern": "pricingConfig:?query:",
+          "target": [
+            "pricingConfig"
+          ]
         }
       ],
       "targets": {
@@ -143,6 +157,14 @@
         "campaignDetail": {
           "id": "campaignDetail",
           "name": "campaignDetail"
+        },
+        "pricingConditions": {
+          "id": "pricingConditions",
+          "name": "pricingConditions"
+        },
+        "pricingConfig": {
+          "id": "pricingConfig",
+          "name": "pricingConfig"
         }
       }
     },

@@ -1,0 +1,103 @@
+<mvc:View controllerName="com.luxasia.campaignmanagement.controller.pricingConfig"
+    xmlns:mvc="sap.ui.core.mvc" displayBlock="true"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core">
+    <Page id="pricingConfigPage"
+        busy="{config>/busy}"
+        busyIndicatorDelay="0">
+        <customHeader>
+            <!-- Luxasia header bar, same as the campaign list and the country selection app -->
+            <OverflowToolbar class="headers">
+                <Button icon="sap-icon://nav-back" tooltip="{i18n>Camp_Back}" press="onNavBack" type="Transparent" class="headerBtn" />
+                <Text text="{i18n>Luxasia}" class="mainmenutext" />
+                <ToolbarSpacer />
+            </OverflowToolbar>
+        </customHeader>
+        <content>
+            <VBox class="campPage">
+                <Title text="{i18n>Config_Title}" titleStyle="H3" class="campPageTitle" />
+                <Text text="{i18n>Config_Lead}" class="campLead" />
+                <MessageStrip text="{i18n>Config_Admin_Hint}" type="Warning" showIcon="true" class="sapUiSmallMarginBottom" />
+                <MessageStrip text="{i18n>Config_Service_Missing}" type="Information" showIcon="true" class="sapUiSmallMarginBottom"
+                    visible="{= !${PricingModel>/available/config} }" />
+
+                <VBox class="campCard">
+                    <Table id="configTable"
+                        mode="SingleSelectMaster"
+                        selectionChange="onSelectionChange"
+                        items="{path: 'PricingModel>/configs', templateShareable: false}"
+                        updateFinished="onConfigsUpdated">
+                        <headerToolbar>
+                            <OverflowToolbar style="Clear">
+                                <Title text="{i18n>Config_Matrix} ({config>/shown})" titleStyle="H5" />
+                                <ToolbarSpacer />
+                                <Select id="configTypeFilter" selectedKey="{config>/type}" change="onTypeFilter" width="14rem"
+                                    items="{path: 'config>/types', templateShareable: false}">
+                                    <core:Item key="{config>key}" text="{config>text}" />
+                                </Select>
+                                <Button icon="sap-icon://download" text="{i18n>Config_Export}" press="onExport" />
+                                <Button icon="sap-icon://save" text="{i18n>Config_Save}" type="Emphasized" press="onSave" />
+                            </OverflowToolbar>
+                        </headerToolbar>
+                        <columns>
+                            <Column><Text text="{i18n>Pricing_Condition_Type}" /></Column>
+                            <Column><Text text="{i18n>Pricing_Col_Combination}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Config_Business_Key}" /></Column>
+                            <Column width="7rem"><Text text="{i18n>Config_Table_No}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Config_Table_Name}" /></Column>
+                            <Column hAlign="Center" width="5rem"><Text text="{i18n>Config_Default}" /></Column>
+                            <Column hAlign="Center" width="5rem"><Text text="{i18n>Config_Active}" /></Column>
+                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Config_Validation}" /></Column>
+                        </columns>
+                        <items>
+                            <ColumnListItem>
+                                <cells>
+                                    <ObjectIdentifier title="{PricingModel>conditionType}" text="{path: 'PricingModel>conditionType', formatter: '.formatType'}" />
+                                    <Text text="{PricingModel>combination}" />
+                                    <Text text="{path: 'PricingModel>combination', formatter: '.formatBusinessKey'}" />
+                                    <Input value="{PricingModel>tableNo}" maxLength="3" placeholder="###" liveChange="onTableNoChange"
+                                        valueState="{path: 'PricingModel>tableNo', formatter: '.formatTableNoState'}"
+                                        valueStateText="{i18n>Config_Table_No_Error}" />
+                                    <Text text="{= ${PricingModel>tableNo} ? 'A' + ${PricingModel>tableNo} : '—' }" class="campCode" />
+                                    <CheckBox selected="{PricingModel>isDefault}" select="onDefaultSelect" />
+                                    <CheckBox selected="{PricingModel>active}" select="onActiveSelect" />
+                                    <ObjectStatus text="{path: 'PricingModel>validation', formatter: '.formatValidation'}"
+                                        state="{= ${PricingModel>validation} === 'Valid' ? 'Success' : ${PricingModel>validation} === 'Invalid' ? 'Error' : 'None' }"
+                                        icon="{= ${PricingModel>dirty} ? 'sap-icon://edit' : '' }" />
+                                </cells>
+                            </ColumnListItem>
+                        </items>
+                    </Table>
+                </VBox>
+
+                <!-- Field mapping of the selected combination (ZSD_CAMP_CONF_F, §18.2) -->
+                <VBox class="campCard">
+                    <Title text="{config>/fieldsTitle}" titleStyle="H5" class="campCardTitle" />
+                    <Table noDataText="{i18n>Config_Fields_Select}" items="{path: 'config>/fieldRows', templateShareable: false}">
+                        <columns>
+                            <Column><Text text="{i18n>Config_Field_Id}" /></Column>
+                            <Column><Text text="{i18n>Config_Field_Label}" /></Column>
+                            <Column hAlign="Center"><Text text="{i18n>Config_Field_Required}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Config_Field_Default}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Config_Field_Value_Help}" /></Column>
+                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Config_Field_Ddic}" /></Column>
+                        </columns>
+                        <items>
+                            <ColumnListItem>
+                                <cells>
+                                    <Text text="{config>id}" class="campCode" />
+                                    <Text text="{config>label}" />
+                                    <core:Icon src="sap-icon://accept" visible="{config>required}" />
+                                    <Text text="{config>defaultRule}" />
+                                    <Text text="{config>valueHelp}" />
+                                    <Text text="{i18n>Config_Field_Ddic_Tbd}" />
+                                </cells>
+                            </ColumnListItem>
+                        </items>
+                    </Table>
+                    <Text text="{i18n>Config_Objects_Hint}" class="sapUiSmallMarginTop campLead" />
+                </VBox>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

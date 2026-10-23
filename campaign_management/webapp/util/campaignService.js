@@ -7,8 +7,8 @@ sap.ui.define([
 
 	// Campaign master service facade (Campaign Management FDD/TDD v1.1, §4.1, §4.3, §5, §8).
 	//
-	// Scope: campaign code only (create / change / display / search). VK11 pricing conditions,
-	// the Axxx key configuration and activation are out of scope for this screen.
+	// Scope: campaign master only (create / change / display / search). VK11 pricing conditions and
+	// the Axxx key configuration are in pricingService.
 	//
 	// The UI talks only to this module; every public method returns a Promise.
 	//
@@ -328,6 +328,11 @@ sap.ui.define([
 
 		getDefaultCountry: function () {
 			return _oModel.getProperty("/defaultCountry");
+		},
+
+		// The store selected in the sales order app (brand value help on the pricing screen).
+		getStoreId: function () {
+			return _storedStoreId();
 		},
 
 		// §4.3 search: campaign ID / description (contains), countries, created by, created on range.
