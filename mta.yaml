@@ -1,0 +1,93 @@
+_schema-version: "3.2"
+ID: Campaign_Management
+version: 0.0.1
+modules:
+- name: Campaign_Management-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: Campaign_Management-destination-service
+    parameters:
+      content-target: true
+  - name: Campaign_Management_html_repo_host
+    parameters:
+      service-key:
+        name: Campaign_Management_html_repo_host-key
+  - name: uaa_Campaign_Management
+    parameters:
+      service-key:
+        name: uaa_Campaign_Management-key
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Name: campaign_management_Campaign_Management_html_repo_host
+          ServiceInstanceName: Campaign_Management-html5-app-host-service
+          ServiceKeyName: Campaign_Management_html_repo_host-key
+          sap.cloud.service: campaign_management
+        - Authentication: OAuth2UserTokenExchange
+          Name: campaign_management_uaa_Campaign_Management
+          ServiceInstanceName: Campaign_Management-xsuaa-service
+          ServiceKeyName: uaa_Campaign_Management-key
+          sap.cloud.service: campaign_management
+        existing_destinations_policy: ignore
+  build-parameters:
+    no-source: true
+- name: Campaign_Management-app-content
+  type: com.sap.application.content
+  path: .
+  requires:
+  - name: Campaign_Management_html_repo_host
+    parameters:
+      content-target: true
+  build-parameters:
+    build-result: resources
+    requires:
+    - artifacts:
+      - comluxasiacampaignmanagement.zip
+      name: comluxasiacampaignmanagement
+      target-path: resources/
+- name: comluxasiacampaignmanagement
+  type: html5
+  path: campaign_management
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+resources:
+- name: Campaign_Management-destination-service
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      init_data:
+        instance:
+          destinations:
+          - Authentication: NoAuthentication
+            Name: ui5
+            ProxyType: Internet
+            Type: HTTP
+            URL: https://ui5.sap.com
+          existing_destinations_policy: update
+      version: 1.0.0
+    service: destination
+    service-name: Campaign_Management-destination-service
+    service-plan: lite
+- name: Campaign_Management_html_repo_host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: Campaign_Management-html5-app-host-service
+    service-plan: app-host
+- name: uaa_Campaign_Management
+  type: org.cloudfoundry.managed-service
+  parameters:
+    path: ./xs-security.json
+    service: xsuaa
+    service-name: Campaign_Management-xsuaa-service
+    service-plan: application
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true

@@ -1,0 +1,38 @@
+/* Campaign Management - overview cards and step indicator (prototype look) */
+/* Same side margins as the campaigns table below (2.5rem), with space above and below */
+.campKpiRow {
+    gap: 1.25rem;
+    padding: 1.25rem 2.5rem 1rem;
+    box-sizing: border-box;
+}
+@media (max-width: 600px) {
+    .campKpiRow {
+        gap: 0.75rem;
+        padding: 1rem;
+    }
+}
+.campKpiCard {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+    padding: 1rem 1.25rem;
+    background: var(--sapTile_Background, #fff);
+    border: 1px solid var(--sapTile_BorderColor, #dce3eb);
+    border-radius: 0.75rem;
+    box-shadow: var(--sapContent_Shadow0, 0 2px 8px rgba(23, 54, 83, 0.04));
+}
+.campKpiCard .sapMTitle {
+    margin-top: 0.25rem;
+    font-size: 1.75rem;
+}
+.campKpiUpcoming.sapMTitle {
+    color: var(--sapInformativeTextColor, #0866b1);
+}
+.campKpiExpired.sapMTitle {
+    color: var(--sapNegativeTextColor, #bb3a3a);
+}
+.campKpiActive.sapMTitle {
+    color: var(--sapPositiveTextColor, #17774c);
+}
+.campSteps .sapMObjectStatus {
+    padding: 0.25rem 0.5rem;
+}

@@ -1,0 +1,115 @@
+<mvc:View controllerName="com.luxasia.campaignmanagement.controller.campaignList"
+    xmlns:mvc="sap.ui.core.mvc" displayBlock="true"
+    xmlns="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:fb="sap.ui.comp.filterbar">
+    <Page id="campaignListPage"
+        title="{i18n>Camp_Title}">
+        <headerContent>
+            <Button icon="sap-icon://refresh" tooltip="{i18n>Camp_Refresh}" press="onSearch" />
+        </headerContent>
+        <content>
+            <!-- Overview cards (prototype "Overview": campaign counts) -->
+            <HBox wrap="Wrap" class="campKpiRow">
+                <VBox class="campKpiCard">
+                    <Label text="{i18n>Camp_Kpi_Total}" />
+                    <Title text="{view>/counts/all}" titleStyle="H2" />
+                </VBox>
+                <VBox class="campKpiCard">
+                    <Label text="{i18n>Camp_Kpi_Active}" />
+                    <Title text="{view>/counts/Active}" titleStyle="H2" class="campKpiActive" />
+                </VBox>
+                <VBox class="campKpiCard">
+                    <Label text="{i18n>Camp_Kpi_Upcoming}" />
+                    <Title text="{view>/counts/Upcoming}" titleStyle="H2" class="campKpiUpcoming" />
+                </VBox>
+                <VBox class="campKpiCard">
+                    <Label text="{i18n>Camp_Kpi_Expired}" />
+                    <Title text="{view>/counts/Expired}" titleStyle="H2" class="campKpiExpired" />
+                </VBox>
+            </HBox>
+
+            <fb:FilterBar id="campFilterBar" useToolbar="false" showClearOnFB="true" search="onSearch" clear="onClearFilters"
+                class="sapUiResponsiveContentPadding">
+                <fb:filterGroupItems>
+                    <fb:FilterGroupItem name="campaign" label="{i18n>Camp_Filter_Campaign}" groupName="camp" visibleInFilterBar="true">
+                        <fb:control>
+                            <Input id="fltCampaign" placeholder="{i18n>Camp_Filter_Campaign_Placeholder}" submit="onSearch" />
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                    <fb:FilterGroupItem name="country" label="{i18n>Camp_Country}" groupName="camp" visibleInFilterBar="true">
+                        <fb:control>
+                            <MultiComboBox id="fltCountry" items="{path: 'CampModel>/countries', sorter: {path: 'Landx'}}"
+                                showSelectAll="true" placeholder="{i18n>Camp_All_Countries}">
+                                <core:Item key="{CampModel>Land1}" text="{= ${CampModel>Land1} + ' ' + ${CampModel>Landx} }" />
+                            </MultiComboBox>
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                    <fb:FilterGroupItem name="createdBy" label="{i18n>Camp_Created_By}" groupName="camp" visibleInFilterBar="true">
+                        <fb:control>
+                            <Input id="fltCreatedBy" submit="onSearch" />
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                    <fb:FilterGroupItem name="createdOn" label="{i18n>Camp_Created_On}" groupName="camp" visibleInFilterBar="true">
+                        <fb:control>
+                            <DateRangeSelection id="fltCreatedOn" displayFormat="dd-MM-yyyy" />
+                        </fb:control>
+                    </fb:FilterGroupItem>
+                </fb:filterGroupItems>
+            </fb:FilterBar>
+
+            <IconTabBar id="campTabs" selectedKey="{view>/tab}" select="onTabSelect" expandable="false" class="sapUiResponsiveContentPadding">
+                <items>
+                    <IconTabFilter key="all" icon="sap-icon://marketing-campaign" text="{i18n>Camp_Tab_All}" count="{view>/counts/all}" />
+                    <IconTabFilter key="Active" icon="sap-icon://complete" text="{i18n>Camp_Tab_Active}" count="{view>/counts/Active}" iconColor="Positive" />
+                    <IconTabFilter key="Upcoming" icon="sap-icon://future" text="{i18n>Camp_Tab_Upcoming}" count="{view>/counts/Upcoming}" iconColor="Neutral" />
+                    <IconTabFilter key="Expired" icon="sap-icon://past" text="{i18n>Camp_Tab_Expired}" count="{view>/counts/Expired}" iconColor="Negative" />
+                </items>
+                <content>
+                    <Table id="campTable"
+                        inset="false"
+                        sticky="HeaderToolbar,ColumnHeaders"
+                        growing="true"
+                        growingThreshold="50"
+                        noDataText="{view>/noDataText}"
+                        busy="{view>/busy}"
+                        items="{path: 'CampModel>/campaigns', sorter: {path: 'id', descending: true}}">
+                        <headerToolbar>
+                            <OverflowToolbar>
+                                <Title text="{i18n>Camp_Campaigns} ({view>/shown})" />
+                                <ToolbarSpacer />
+                                <Button icon="sap-icon://sort" tooltip="{i18n>Camp_Sort}" press="onSort" />
+                                <Button icon="sap-icon://excel-attachment" tooltip="{i18n>Camp_Export}" press="onExport"
+                                    enabled="{= ${view>/shown} > 0 }" />
+                                <Button text="{i18n>Camp_Create}" icon="sap-icon://add" type="Emphasized" press="onCreate" />
+                            </OverflowToolbar>
+                        </headerToolbar>
+                        <columns>
+                            <Column><Text text="{i18n>Camp_Id}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Camp_Country}" /></Column>
+                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Camp_Created_On}" /></Column>
+                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Camp_Created_By}" /></Column>
+                            <Column><Text text="{i18n>Camp_Status}" /></Column>
+                            <Column hAlign="End"><Text text="" /></Column>
+                        </columns>
+                        <items>
+                            <ColumnListItem type="Inactive">
+                                <cells>
+                                    <ObjectIdentifier title="{CampModel>id}" text="{CampModel>description}" />
+                                    <Text text="{CampModel>countryName} ({CampModel>country})" />
+                                    <Text text="{path: 'CampModel>createdOn', formatter: '.formatDate'}" />
+                                    <Text text="{CampModel>createdBy}" />
+                                    <ObjectStatus text="{CampModel>status}" state="{CampModel>statusState}" inverted="true" />
+                                    <HBox justifyContent="End">
+                                        <Button text="{i18n>Camp_Display}" icon="sap-icon://display" press="onDisplay" />
+                                        <Button text="{i18n>Camp_Change}" icon="sap-icon://edit" type="Emphasized" press="onChange" class="sapUiTinyMarginBegin" />
+                                    </HBox>
+                                </cells>
+                            </ColumnListItem>
+                        </items>
+                    </Table>
+                </content>
+            </IconTabBar>
+        </content>
+    </Page>
+</mvc:View>

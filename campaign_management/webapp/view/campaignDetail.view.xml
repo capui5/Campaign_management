@@ -1,0 +1,135 @@
+<mvc:View controllerName="com.luxasia.campaignmanagement.controller.campaignDetail"
+    xmlns:mvc="sap.ui.core.mvc" displayBlock="true"
+    xmlns="sap.uxap"
+    xmlns:m="sap.m"
+    xmlns:core="sap.ui.core"
+    xmlns:f="sap.ui.layout.form">
+    <m:Page id="campaignDetailPage"
+        title="{= ${camp>/isNew} ? ${i18n>Camp_Create_Title} : ${i18n>Camp_Detail_Title} }"
+        showNavButton="true"
+        navButtonPress="onNavBack"
+        showFooter="true"
+        busy="{camp>/busy}"
+        busyIndicatorDelay="0">
+        <ObjectPageLayout id="campDetailLayout" showTitleInHeaderContent="true" upperCaseAnchorBar="false">
+            <headerTitle>
+                <ObjectPageDynamicHeaderTitle>
+                    <expandedHeading>
+                        <m:Title text="{= ${camp>/isNew} ? ${i18n>Camp_Create_Title} : ${i18n>Camp_Campaign} + ' ' + ${camp>/original/id} }" wrapping="true" />
+                    </expandedHeading>
+                    <snappedHeading>
+                        <m:Title text="{= ${camp>/isNew} ? ${i18n>Camp_Create_Title} : ${i18n>Camp_Campaign} + ' ' + ${camp>/original/id} }" />
+                    </snappedHeading>
+                    <expandedContent>
+                        <m:Text text="{= ${camp>/isNew} ? ${i18n>Camp_Create_Lead} : ${camp>/original/description} }" />
+                    </expandedContent>
+                    <snappedContent>
+                        <m:Text text="{camp>/original/description}" />
+                    </snappedContent>
+                </ObjectPageDynamicHeaderTitle>
+            </headerTitle>
+            <headerContent>
+                <m:VBox>
+                    <!-- Prototype step indicator, campaign master only -->
+                    <m:HBox class="campSteps sapUiSmallMarginBottom" wrap="Wrap" alignItems="Center">
+                        <m:ObjectStatus text="1 · {i18n>Camp_Step_Details}" inverted="true"
+                            icon="{= ${camp>/isNew} ? 'sap-icon://edit' : 'sap-icon://accept' }"
+                            state="{= ${camp>/isNew} ? 'Information' : 'Success' }" />
+                        <core:Icon src="sap-icon://navigation-right-arrow" class="sapUiTinyMarginBeginEnd" />
+                        <m:ObjectStatus text="2 · {i18n>Camp_Step_Saved}" inverted="true"
+                            icon="{= ${camp>/isNew} ? 'sap-icon://pending' : 'sap-icon://accept' }"
+                            state="{= ${camp>/isNew} ? 'None' : 'Success' }" />
+                    </m:HBox>
+                    <m:HBox wrap="Wrap">
+                        <m:VBox class="sapUiMediumMarginEnd sapUiSmallMarginBottom">
+                            <m:Label text="{i18n>Camp_Status}" />
+                            <m:ObjectStatus text="{= ${camp>/isNew} ? ${i18n>Camp_Status_New} : ${camp>/original/status} }"
+                                state="{= ${camp>/isNew} ? 'None' : ${camp>/original/statusState} }" class="sapMObjectStatusLarge" />
+                        </m:VBox>
+                        <m:VBox class="sapUiMediumMarginEnd sapUiSmallMarginBottom" visible="{= !${camp>/isNew} }">
+                            <m:Label text="{i18n>Camp_Country}" />
+                            <m:Text text="{camp>/original/countryName} ({camp>/original/country})" />
+                        </m:VBox>
+                    </m:HBox>
+                </m:VBox>
+            </headerContent>
+
+            <sections>
+                <ObjectPageSection id="secGeneral" title="{i18n>Camp_Tab_General}">
+                    <subSections>
+                        <ObjectPageSubSection>
+                            <blocks>
+                                <m:VBox>
+                                    <f:SimpleForm id="campForm" editable="{camp>/edit}" layout="ResponsiveGridLayout"
+                                        labelSpanXL="4" labelSpanL="4" labelSpanM="4" labelSpanS="12"
+                                        columnsXL="1" columnsL="1" columnsM="1" singleContainerFullSize="false">
+                                        <f:content>
+                                            <core:Title text="{i18n>Camp_Section_Campaign}" />
+                                            <m:Label text="{i18n>Camp_Id}" />
+                                            <m:Input value="{camp>/display/id}" editable="false" />
+
+                                            <m:Label text="{i18n>Camp_Description}" required="true" />
+                                            <m:Input id="campDescription" value="{camp>/data/description}" editable="{camp>/edit}"
+                                                maxLength="{camp>/descriptionMax}" showValueStateMessage="true"
+                                                valueState="{camp>/state/description}" valueStateText="{camp>/stateText/description}"
+                                                liveChange="onFieldChange" placeholder="{i18n>Camp_Description_Placeholder}" />
+
+                                            <m:Label text="{i18n>Camp_Country}" required="true" />
+                                            <m:Select id="campCountry" selectedKey="{camp>/data/country}" editable="{camp>/edit}"
+                                                items="{path: 'CampModel>/countries', sorter: {path: 'Landx'}, templateShareable: false}"
+                                                forceSelection="false" width="100%"
+                                                valueState="{camp>/state/country}" valueStateText="{camp>/stateText/country}"
+                                                change="onFieldChange">
+                                                <core:Item key="{CampModel>Land1}" text="{= ${CampModel>Land1} + ' ' + ${CampModel>Landx} }" />
+                                            </m:Select>
+                                        </f:content>
+                                    </f:SimpleForm>
+                                    <m:MessageStrip text="{i18n>Camp_Country_Hint}" type="Information" showIcon="true"
+                                        class="sapUiSmallMarginTop" visible="{camp>/edit}" />
+                                </m:VBox>
+                            </blocks>
+                        </ObjectPageSubSection>
+                    </subSections>
+                </ObjectPageSection>
+
+                <ObjectPageSection id="secHistory" title="{i18n>Camp_Tab_History}" visible="{= !${camp>/isNew} }">
+                    <subSections>
+                        <ObjectPageSubSection>
+                            <blocks>
+                                <m:VBox>
+                                    <m:Table noDataText="{i18n>Camp_History_None}" items="{camp>/history}">
+                                        <m:columns>
+                                            <m:Column><m:Text text="{i18n>Camp_History_Event}" /></m:Column>
+                                            <m:Column><m:Text text="{i18n>Camp_History_User}" /></m:Column>
+                                            <m:Column><m:Text text="{i18n>Camp_History_Date}" /></m:Column>
+                                        </m:columns>
+                                        <m:items>
+                                            <m:ColumnListItem>
+                                                <m:cells>
+                                                    <m:Text text="{camp>event}" />
+                                                    <m:Text text="{camp>user}" />
+                                                    <m:Text text="{path: 'camp>date', formatter: '.formatDate'}" />
+                                                </m:cells>
+                                            </m:ColumnListItem>
+                                        </m:items>
+                                    </m:Table>
+                                    <m:MessageStrip text="{i18n>Camp_History_Hint}" type="Information" showIcon="true" class="sapUiSmallMarginTop" />
+                                </m:VBox>
+                            </blocks>
+                        </ObjectPageSubSection>
+                    </subSections>
+                </ObjectPageSection>
+            </sections>
+        </ObjectPageLayout>
+        <m:footer>
+            <m:OverflowToolbar>
+                <m:ToolbarSpacer />
+                <!-- Create: Save / Cancel. Change: Save / Back to Campaigns. Display: Change / Back to Campaigns. -->
+                <m:Button text="{i18n>Camp_Save}" type="Emphasized" press="onSave" visible="{camp>/edit}" enabled="{= !${camp>/busy} }" />
+                <m:Button text="{i18n>Camp_Change}" icon="sap-icon://edit" type="Emphasized" press="onEditMode" visible="{= !${camp>/edit} }" />
+                <m:Button text="{i18n>Cancel}" press="onCancel" visible="{camp>/isNew}" />
+                <m:Button text="{i18n>Camp_Back_To_List}" press="onBackToList" visible="{= !${camp>/isNew} }" />
+            </m:OverflowToolbar>
+        </m:footer>
+    </m:Page>
+</mvc:View>

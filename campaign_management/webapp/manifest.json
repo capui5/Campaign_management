@@ -1,0 +1,160 @@
+{
+  "_version": "1.89.0",
+  "sap.app": {
+    "id": "com.luxasia.campaignmanagement",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": {
+      "version": "0.0.1"
+    },
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "resources": "resources.json",
+    "sourceTemplate": {
+      "id": "@sap/generator-fiori:basic",
+      "version": "1.33.0",
+      "toolsId": "af7f1298-a0c6-4728-a16a-649d29fa2c75"
+    },
+    "dataSources": {
+      "mainService": {
+        "uri": "/sap/opu/odata/sap/ZSDGW_CE_APP_SRV/",
+        "type": "OData",
+        "settings": {
+          "annotations": [],
+          "localUri": "localService/mainService/metadata.xml",
+          "odataVersion": "2.0"
+        }
+      }
+    },
+    "crossNavigation": {
+      "inbounds": {
+        "campaign_management-manage": {
+          "semanticObject": "campaign_management",
+          "action": "manage",
+          "title": "{{campaign_management-manage.flpTitle}}",
+          "signature": {
+            "parameters": {},
+            "additionalParameters": "allowed"
+          }
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "icons": {
+      "icon": "",
+      "favIcon": "",
+      "phone": "",
+      "phone@2": "",
+      "tablet": "",
+      "tablet@2": ""
+    },
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.153.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.ui.comp": {},
+        "sap.uxap": {},
+        "sap.ui.layout": {},
+        "sap.ui.export": {
+          "lazy": true
+        }
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "com.luxasia.campaignmanagement.i18n.i18n"
+        }
+      },
+      "mainModel": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {}
+      },
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {}
+      }
+    },
+    "resources": {
+      "css": [
+        {
+          "uri": "css/style.css"
+        }
+      ]
+    },
+    "routing": {
+      "config": {
+        "routerClass": "sap.m.routing.Router",
+        "controlAggregation": "pages",
+        "controlId": "app",
+        "transition": "slide",
+        "type": "View",
+        "viewType": "XML",
+        "path": "com.luxasia.campaignmanagement.view",
+        "async": true,
+        "viewPath": "com.luxasia.campaignmanagement.view"
+      },
+      "routes": [
+        {
+          "name": "campaignList",
+          "pattern": ":?query:",
+          "target": [
+            "campaignList"
+          ]
+        },
+        {
+          "name": "campaignCreate",
+          "pattern": "campaignCreate",
+          "target": [
+            "campaignDetail"
+          ]
+        },
+        {
+          "name": "campaignDetail",
+          "pattern": "campaignDetail/{campaignId}:?query:",
+          "target": [
+            "campaignDetail"
+          ]
+        }
+      ],
+      "targets": {
+        "campaignList": {
+          "id": "campaignList",
+          "name": "campaignList"
+        },
+        "campaignDetail": {
+          "id": "campaignDetail",
+          "name": "campaignDetail"
+        }
+      }
+    },
+    "rootView": {
+      "viewName": "com.luxasia.campaignmanagement.view.App",
+      "type": "XML",
+      "id": "App",
+      "async": true
+    }
+  },
+  "sap.cloud": {
+    "public": true,
+    "service": "campaign_management"
+  }
+}
