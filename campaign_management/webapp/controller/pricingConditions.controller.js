@@ -141,11 +141,32 @@ sap.ui.define([
         // ------------------------------------------------------------ draft
 
         // New draft for the condition type (keeps the last one), with its default combination.
+        // Only the campaign is prefilled; the user enters every condition detail.
         _resetDraft: function (sType) {
             var oModel = this._model();
-            var oDraft = pricingService.newDraft(oModel.getProperty("/campaignId"), oModel.getProperty("/country"), sType);
+            var oDraft = this._blankDetails(pricingService.newDraft(oModel.getProperty("/campaignId"), oModel.getProperty("/country"), sType));
             oModel.setProperty("/draft", oDraft);
             this._applyType();
+        },
+
+        // Empties the condition details of a draft; campaign, condition type and combination stay.
+        // Percentages keep % as their unit, which is not editable.
+        _blankDetails: function (oDraft) {
+            var bPercent = pricingService.CONDITION_TYPES[oDraft.conditionType].kind === "percent";
+            return Object.assign({}, oDraft, {
+                salesOrg: "",
+                distChannel: "",
+                customer: "",
+                article: "",
+                hierarchy: "",
+                brand: "",
+                rate: "",
+                rateUnit: bPercent ? pricingService.PERCENT : "",
+                pricingUnit: "",
+                uom: "",
+                validFrom: null,
+                validTo: null
+            });
         },
 
         // Combination list, labels and visible key fields follow the condition type.
@@ -192,13 +213,10 @@ sap.ui.define([
             this.getOwnerComponent().getRouter().navTo("campaignPricing", { campaignId: sId, "?query": this._query() }, true);
         },
 
+        // A new condition type starts with empty condition details.
         onTypeChange: function () {
             var oModel = this._model();
-            var sType = oModel.getProperty("/draft/conditionType");
-            var sKind = pricingService.CONDITION_TYPES[sType].kind;
-            // Percentages carry %; amounts the campaign country's currency.
-            oModel.setProperty("/draft/rateUnit", sKind === "percent" ? pricingService.PERCENT :
-                pricingService.currencyFor(oModel.getProperty("/country")));
+            oModel.setProperty("/draft", this._blankDetails(oModel.getProperty("/draft")));
             this._applyType();
         },
 
@@ -250,11 +268,12 @@ sap.ui.define([
             MessageBox.error(aMsg.map(function (m) { return m.text; }).join("\n"));
         },
 
-        // Adds the draft row; sales area, dates and condition type stay for the next row.
+        // Adds the draft row to the records table; sales area, dates and condition type stay for the next row.
         onAddDraft: function () {
             var that = this;
             var oModel = this._model();
             pricingService.addDraft(oModel.getProperty("/draft")).then(function () {
+                that._filterRecords(oModel.getProperty("/campaignId"));
                 ["customer", "article", "brand", "rate"].forEach(function (k) {
                     oModel.setProperty("/draft/" + k, "");
                 });
@@ -266,7 +285,9 @@ sap.ui.define([
         },
 
         onClearDraft: function () {
-            this._resetDraft(this._model().getProperty("/draft/conditionType"));
+            var oModel = this._model();
+            oModel.setProperty("/draft", this._blankDetails(oModel.getProperty("/draft")));
+            this._clearStates();
         },
 
         // ------------------------------------------------------------ records
@@ -317,17 +338,6 @@ sap.ui.define([
             });
             this.getView().addDependent(oDialog);
             oDialog.open();
-        },
-
-        onValidate: function () {
-            var oResult = pricingService.validateDrafts(this._model().getProperty("/campaignId"));
-            if (!oResult.open) {
-                MessageBox.information(this._i18n("Pricing_Nothing_Open"));
-            } else if (oResult.errors) {
-                MessageBox.error(this._i18n("Pricing_Validate_Errors", [oResult.errors, oResult.open]));
-            } else {
-                MessageBox.success(this._i18n("Pricing_Validate_Ok", [oResult.open]));
-            }
         },
 
         // Per-row results: saved rows show the S/4 record number, failed rows their message (§13).

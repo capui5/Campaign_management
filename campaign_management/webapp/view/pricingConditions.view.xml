@@ -75,8 +75,9 @@
                             <Input id="pricingCampaignId" value="{pricing>/draft/campaignId}" editable="false" />
                         </VBox>
                         <VBox visible="{pricing>/fields/brand}">
-                            <Label text="{i18n>Pricing_Hierarchy}" labelFor="pricingHierarchy" />
-                            <Input id="pricingHierarchy" value="{pricing>/draft/hierarchy}" editable="false"
+                            <Label text="{i18n>Pricing_Hierarchy}" labelFor="pricingHierarchy" required="true" />
+                            <Input id="pricingHierarchy" value="{pricing>/draft/hierarchy}" maxLength="2"
+                                placeholder="{i18n>Pricing_Hierarchy_Placeholder}" liveChange="onFieldChange"
                                 valueState="{pricing>/state/hierarchy}" valueStateText="{pricing>/stateText/hierarchy}" />
                         </VBox>
                         <VBox visible="{pricing>/fields/brand}">
@@ -156,8 +157,6 @@
                                 <Title text="{i18n>Pricing_Step4} ({pricing>/shown})" titleStyle="H5" />
                                 <ToolbarSpacer />
                                 <Button icon="sap-icon://excel-attachment" tooltip="{i18n>Pricing_Export}" press="onExport"
-                                    enabled="{= ${pricing>/shown} > 0 }" />
-                                <Button text="{i18n>Pricing_Validate}" icon="sap-icon://validate" press="onValidate"
                                     enabled="{= ${pricing>/shown} > 0 }" />
                                 <Button text="{i18n>Pricing_Save}" icon="sap-icon://save" type="Accept" press="onSave"
                                     enabled="{= ${pricing>/shown} > 0 }" />
