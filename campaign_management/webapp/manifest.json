@@ -24,6 +24,15 @@
           "localUri": "localService/mainService/metadata.xml",
           "odataVersion": "2.0"
         }
+      },
+      "oDataV4": {
+        "uri": "/luxasia/oDataV4/",
+        "type": "OData",
+        "settings": {
+          "annotations": [],
+          "localUri": "localService/oDataV4/metadata.xml",
+          "odataVersion": "4.0"
+        }
       }
     },
     "crossNavigation": {
@@ -91,6 +100,15 @@
         "dataSource": "mainService",
         "preload": true,
         "settings": {}
+      },
+      "oDataV4": {
+        "dataSource": "oDataV4",
+        "preload": true,
+        "settings": {
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
       }
     },
     "resources": {
