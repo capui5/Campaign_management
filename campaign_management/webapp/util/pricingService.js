@@ -1,9 +1,7 @@
 sap.ui.define([
 	"sap/ui/model/json/JSONModel",
-	"sap/ui/model/Filter",
-	"sap/ui/model/FilterOperator",
 	"com/luxasia/campaignmanagement/util/capService"
-], function (JSONModel, Filter, FilterOperator, capService) {
+], function (JSONModel, capService) {
 	"use strict";
 
 	// Campaign pricing conditions + Axxx key configuration facade (Campaign Management FDD/TDD v1.1,
@@ -39,8 +37,11 @@ sap.ui.define([
 	//   The validity key properties follow the business keys of the record's key combination
 	//   (BUSINESS_KEYS.S4_FIELD, see S4_KEY_PROPERTY), so every condition table gets only its own keys.
 	//
-	// Backend 3: mainModel (ZSDGW_CE_APP_SRV, S/4), read only:
-	//   BrandSet              brand value help (WRF_BRANDS), filtered by store like the sales order app.
+	// Value helps (CAP, read only):
+	//   SalesOrganizations    SALES_ORG                                   loaded once
+	//   BrandsMaster          BRAND, DESCRIPTION, LANGUAGE                loaded once
+	//   Customers             CUSTOMER, CUSTOMER_NAME, CITY, COUNTRY      loaded once
+	//   Articles              ARTICLE_SKU, DESCRIPTION, SPRAS             loaded once
 	//
 	// S/4 is written only by save(); drafts, deletions and the configuration go to CAP only.
 	//
@@ -56,7 +57,11 @@ sap.ui.define([
 	var S4_CONDITION_SET = "/A_SlsPrcgConditionRecord";
 	var S4_VALIDITY_TYPE = "A_SlsPrcgCndnRecdValidityType";
 	var S4_APPLICATION = "V"; // sales
-	var BRAND_SET = "/BrandSet";
+	var SALES_ORG_SET = "SalesOrganizations";
+	var BRAND_SET = "BrandsMaster";
+	var CUSTOMER_SET = "Customers";
+	var ARTICLE_SET = "Articles";
+	var VALUE_HELP_LIMIT = 5000; // entries per dropdown (the views bind with length: 5000)
 
 	// Row property -> CampaignPricingRecords property (API §5).
 	var FIELD = {
@@ -190,7 +195,7 @@ sap.ui.define([
 	var _oComponent = null;
 	var _oModel = null;
 	var _pInit = null;
-	var _pBrands = null;
+	var _pValueHelps = null;
 	var _iRowSeq = 0;
 	var _mAvailable = { config: false, records: false, posting: false };
 	var _aValidityProps = []; // property names of to_SlsPrcgCndnRecdValidity
@@ -212,6 +217,63 @@ sap.ui.define([
 	function _err(sText, sField) {
 		return { type: "Error", text: sText, field: sField || "" };
 	}
+
+	// ---------------------------------------------------------------- value helps (CAP)
+
+	// [{ key, text }] without duplicates (e.g. one row per language), first row wins.
+	function _uniqueItems(aRows, fnKey, fnText, fnExtra) {
+		var mSeen = {};
+		return aRows.filter(function (r) {
+			var sKey = fnKey(r);
+			var bNew = !!sKey && !mSeen[sKey];
+			mSeen[sKey] = true;
+			return bNew;
+		}).map(function (r) {
+			var oItem = { key: fnKey(r), text: fnText(r) || fnKey(r) };
+			if (fnExtra) {
+				oItem.info = fnExtra(r) || "";
+			}
+			return oItem;
+		});
+	}
+
+	// Rows in the logon language first, so _uniqueItems keeps that description.
+	function _byLanguage(aRows, sProp) {
+		return aRows.slice().sort(function (a, b) {
+			return (a[sProp] === "E" ? 0 : 1) - (b[sProp] === "E" ? 0 : 1);
+		});
+	}
+
+	// List name -> CAP entity set and the mapping to dropdown items { key, text, info }.
+	var VALUE_HELPS = {
+		salesOrgs: {
+			set: SALES_ORG_SET,
+			items: function (aRows) {
+				return _uniqueItems(aRows, function (r) { return r.SALES_ORG; }, function () { return ""; });
+			}
+		},
+		brands: {
+			set: BRAND_SET,
+			items: function (aRows) {
+				return _uniqueItems(_byLanguage(aRows, "LANGUAGE"), function (r) { return r.BRAND; },
+					function (r) { return r.DESCRIPTION; });
+			}
+		},
+		customers: {
+			set: CUSTOMER_SET,
+			items: function (aRows) {
+				return _uniqueItems(aRows, function (r) { return r.CUSTOMER; }, function (r) { return r.CUSTOMER_NAME; },
+					function (r) { return [r.CITY, r.COUNTRY].filter(Boolean).join(", "); });
+			}
+		},
+		articles: {
+			set: ARTICLE_SET,
+			items: function (aRows) {
+				return _uniqueItems(_byLanguage(aRows, "SPRAS"), function (r) { return r.ARTICLE_SKU; },
+					function (r) { return r.DESCRIPTION; });
+			}
+		}
+	};
 
 	// SAP Gateway (V2) error body -> messages (same parsing as campaignService).
 	function _fromODataError(oError) {
@@ -236,19 +298,6 @@ sap.ui.define([
 	}
 
 	// ---------------------------------------------------------------- S/4 (V2) calls
-
-	function _main() {
-		return _oComponent.getModel("mainModel");
-	}
-
-	function _read(sPath, mParameters) {
-		return new Promise(function (resolve, reject) {
-			_main().read(sPath, Object.assign({}, mParameters, {
-				success: function (oData) { resolve(oData.results || oData); },
-				error: function (oError) { reject(_fromODataError(oError)); }
-			}));
-		});
-	}
 
 	function _s4() {
 		return _oComponent.getModel(S4_MODEL);
@@ -967,7 +1016,7 @@ sap.ui.define([
 	}
 
 	function _newModel() {
-		return new JSONModel({ conditions: [], configs: [], brands: [], available: {}, serviceError: "", keysError: "" });
+		return new JSONModel({ conditions: [], configs: [], brands: [], salesOrgs: [], customers: [], articles: [], available: {}, serviceError: "", keysError: "" });
 	}
 
 	function _publishAvailability() {
@@ -1101,6 +1150,40 @@ sap.ui.define([
 			});
 		},
 
+		// Several drafts at once (multi-select key fields: one row per combination of the picked
+		// values). All rows are validated first, against the campaign's records and each other; when
+		// any row is invalid nothing is stored. Otherwise they are stored one by one like addDraft.
+		addDrafts: function (aDrafts) {
+			var that = this;
+			var aRows = aDrafts.map(function (oDraft, i) {
+				return Object.assign(_normalize(oDraft), { rowId: "new-" + i });
+			});
+			var mSeen = {};
+			var aMsg = [];
+			aRows.forEach(function (oRow, i) {
+				var aOthers = conditionsOf(oRow.campaignId).concat(aRows.slice(0, i));
+				validateRow(oRow, aOthers).forEach(function (m) {
+					var sKeys = ["salesOrg", "customer", "article", "brand"].map(function (k) { return oRow[k]; })
+						.filter(Boolean).join(" / ");
+					var oMsg = aRows.length > 1 && sKeys ? Object.assign({}, m, { text: sKeys + ": " + m.text }) : m;
+					if (!mSeen[oMsg.text]) {
+						mSeen[oMsg.text] = true;
+						aMsg.push(oMsg);
+					}
+				});
+			});
+			if (aMsg.length) {
+				return Promise.reject(_throw(aMsg));
+			}
+			return aRows.reduce(function (p, oRow) {
+				return p.then(function (aDone) {
+					return that.addDraft(Object.assign({}, oRow, { rowId: undefined })).then(function (oSaved) {
+						return aDone.concat([oSaved]);
+					});
+				});
+			}, Promise.resolve([]));
+		},
+
 		// API §5.5: only DRAFT records can be deleted (CAP only); posted and failed records stay.
 		removeDraft: function (sRowId) {
 			var oRow = _rows().find(function (o) { return o.rowId === sRowId; });
@@ -1172,25 +1255,21 @@ sap.ui.define([
 			});
 		},
 
-		// Brand value help (WRF_BRANDS via BrandSet), for the selected store when there is one. Any
-		// failure leaves the list empty: the brand can still be typed and S/4 validates it.
-		loadBrands: function (sStoreId) {
-			if (!_pBrands) {
-				var aFilters = sStoreId ? [new Filter("StoreId", FilterOperator.EQ, sStoreId)] : [];
-				_pBrands = _read(BRAND_SET, { filters: aFilters, urlParameters: { $top: 5000 } }).then(function (aBrands) {
-					var mSeen = {};
-					_oModel.setProperty("/brands", aBrands.filter(function (b) {
-						var bNew = b.BrandId && !mSeen[b.BrandId];
-						mSeen[b.BrandId] = true;
-						return bNew;
-					}).map(function (b) {
-						return { key: b.BrandId, text: b.BrandDesc || b.BrandId };
-					}));
-				}).catch(function () {
-					_oModel.setProperty("/brands", []);
-				});
+		// Dropdown lists from CAP (SalesOrganizations, BrandsMaster, Customers, Articles), read once per
+		// session, up to VALUE_HELP_LIMIT entries each, into /salesOrgs, /brands, /customers, /articles.
+		// A failed read leaves only that list empty.
+		loadValueHelps: function () {
+			if (!_pValueHelps) {
+				_pValueHelps = Promise.all(Object.keys(VALUE_HELPS).map(function (sList) {
+					var oDef = VALUE_HELPS[sList];
+					return capService.list(oDef.set, { $top: VALUE_HELP_LIMIT }).then(function (aRows) {
+						_oModel.setProperty("/" + sList, oDef.items(aRows).slice(0, VALUE_HELP_LIMIT));
+					}).catch(function () {
+						_oModel.setProperty("/" + sList, []);
+					});
+				}));
 			}
-			return _pBrands;
+			return _pValueHelps;
 		},
 
 		// Condition types for the dropdown: [{ key, text }], from CAP ConditionTypes only. Rejects with
@@ -1280,7 +1359,7 @@ sap.ui.define([
 		_reset: function () {
 			_oModel = null;
 			_pInit = null;
-			_pBrands = null;
+			_pValueHelps = null;
 			_iRowSeq = 0;
 			_mAvailable = { config: false, records: false, posting: false };
 			_aValidityProps = [];

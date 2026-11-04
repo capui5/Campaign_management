@@ -1,0 +1,14 @@
+[
+  {
+    "CUSTOMER": "0010000001",
+    "CUSTOMER_NAME": "Sephora Singapore Pte Ltd",
+    "CITY": "Singapore",
+    "COUNTRY": "SG"
+  },
+  {
+    "CUSTOMER": "0010000002",
+    "CUSTOMER_NAME": "Sephora Malaysia Sdn Bhd",
+    "CITY": "Kuala Lumpur",
+    "COUNTRY": "MY"
+  }
+]

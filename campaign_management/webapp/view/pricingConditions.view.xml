@@ -62,8 +62,14 @@
                     <l:Grid defaultSpan="XL4 L4 M6 S12" vSpacing="0" class="campFieldGrid">
                         <VBox>
                             <Label text="{i18n>Pricing_Sales_Org}" labelFor="pricingSalesOrg" required="true" />
-                            <Input id="pricingSalesOrg" value="{pricing>/draft/salesOrg}" maxLength="4" placeholder="{i18n>Pricing_Sales_Org_Placeholder}"
-                                valueState="{pricing>/state/salesOrg}" valueStateText="{pricing>/stateText/salesOrg}" liveChange="onFieldChange" />
+                            <MultiInput id="pricingSalesOrg" width="100%" showValueHelp="true" valueHelpOnly="true"
+                                valueHelpRequest="onValueHelp" tokenUpdate="onTokenUpdate" placeholder="{i18n>Pricing_Pick_Placeholder}"
+                                tokens="{path: 'pricing>/draft/salesOrgTokens', templateShareable: false}"
+                                valueState="{pricing>/state/salesOrg}" valueStateText="{pricing>/stateText/salesOrg}">
+                                <tokens>
+                                    <Token key="{pricing>key}" text="{pricing>key}" tooltip="{pricing>text}" />
+                                </tokens>
+                            </MultiInput>
                         </VBox>
                         <VBox>
                             <Label text="{i18n>Pricing_Dist_Channel}" labelFor="pricingDistChannel" required="true" />
@@ -81,25 +87,36 @@
                         </VBox>
                         <VBox visible="{pricing>/fields/brand}">
                             <Label text="{i18n>Pricing_Brand}" labelFor="pricingBrand" required="true" />
-                            <Input id="pricingBrand" value="{pricing>/draft/brand}" maxLength="4" showSuggestion="true"
-                                placeholder="{i18n>Pricing_Brand_Placeholder}"
-                                suggestionItems="{path: 'PricingModel>/brands', sorter: {path: 'text'}, templateShareable: false}"
-                                suggestionItemSelected="onBrandSelected"
-                                valueState="{pricing>/state/brand}" valueStateText="{pricing>/stateText/brand}" liveChange="onFieldChange">
-                                <suggestionItems>
-                                    <core:ListItem key="{PricingModel>key}" text="{PricingModel>key}" additionalText="{PricingModel>text}" />
-                                </suggestionItems>
-                            </Input>
+                            <MultiInput id="pricingBrand" width="100%" showValueHelp="true" valueHelpOnly="true"
+                                valueHelpRequest="onValueHelp" tokenUpdate="onTokenUpdate" placeholder="{i18n>Pricing_Pick_Placeholder}"
+                                tokens="{path: 'pricing>/draft/brandTokens', templateShareable: false}"
+                                valueState="{pricing>/state/brand}" valueStateText="{pricing>/stateText/brand}">
+                                <tokens>
+                                    <Token key="{pricing>key}" text="{pricing>key}" tooltip="{pricing>text}" />
+                                </tokens>
+                            </MultiInput>
                         </VBox>
                         <VBox visible="{pricing>/fields/customer}">
                             <Label text="{i18n>Pricing_Customer}" labelFor="pricingCustomer" required="true" />
-                            <Input id="pricingCustomer" value="{pricing>/draft/customer}" maxLength="10"
-                                valueState="{pricing>/state/customer}" valueStateText="{pricing>/stateText/customer}" liveChange="onFieldChange" />
+                            <MultiInput id="pricingCustomer" width="100%" showValueHelp="true" valueHelpOnly="true"
+                                valueHelpRequest="onValueHelp" tokenUpdate="onTokenUpdate" placeholder="{i18n>Pricing_Pick_Placeholder}"
+                                tokens="{path: 'pricing>/draft/customerTokens', templateShareable: false}"
+                                valueState="{pricing>/state/customer}" valueStateText="{pricing>/stateText/customer}">
+                                <tokens>
+                                    <Token key="{pricing>key}" text="{pricing>key}" tooltip="{pricing>text}" />
+                                </tokens>
+                            </MultiInput>
                         </VBox>
                         <VBox visible="{pricing>/fields/article}">
                             <Label text="{i18n>Pricing_Article}" labelFor="pricingArticle" required="true" />
-                            <Input id="pricingArticle" value="{pricing>/draft/article}" maxLength="40"
-                                valueState="{pricing>/state/article}" valueStateText="{pricing>/stateText/article}" liveChange="onFieldChange" />
+                            <MultiInput id="pricingArticle" width="100%" showValueHelp="true" valueHelpOnly="true"
+                                valueHelpRequest="onValueHelp" tokenUpdate="onTokenUpdate" placeholder="{i18n>Pricing_Pick_Placeholder}"
+                                tokens="{path: 'pricing>/draft/articleTokens', templateShareable: false}"
+                                valueState="{pricing>/state/article}" valueStateText="{pricing>/stateText/article}">
+                                <tokens>
+                                    <Token key="{pricing>key}" text="{pricing>key}" tooltip="{pricing>text}" />
+                                </tokens>
+                            </MultiInput>
                         </VBox>
                         <VBox>
                             <Label text="{i18n>Pricing_Valid_From}" labelFor="pricingValidFrom" required="true" />

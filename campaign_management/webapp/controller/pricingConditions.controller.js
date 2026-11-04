@@ -2,13 +2,16 @@ sap.ui.define([
     "sap/ui/core/mvc/Controller",
     "sap/ui/model/json/JSONModel",
     "sap/ui/model/Filter",
+    "sap/ui/model/Sorter",
+    "sap/m/SelectDialog",
+    "sap/m/StandardListItem",
     "sap/m/MessageBox",
     "sap/m/MessageToast",
     "com/luxasia/campaignmanagement/util/campaignService",
     "com/luxasia/campaignmanagement/util/pricingService",
     "com/luxasia/campaignmanagement/util/pricingFormatter",
     "com/luxasia/campaignmanagement/util/backNavGuard"
-], function (Controller, JSONModel, Filter, MessageBox, MessageToast,
+], function (Controller, JSONModel, Filter, Sorter, SelectDialog, StandardListItem, MessageBox, MessageToast,
     campaignService, pricingService, pricingFormatter, backNavGuard) {
     "use strict";
 
@@ -20,6 +23,15 @@ sap.ui.define([
     // leaving this screen does not lose them.
     var FIELDS = ["conditionType", "combination", "salesOrg", "distChannel", "customer", "article", "hierarchy",
         "brand", "validFrom", "validTo", "rate", "rateUnit", "pricingUnit", "uom"];
+
+    // Multi-select key fields: field -> PricingModel list (CAP master data) and dialog title.
+    var PICK = {
+        salesOrg: { list: "salesOrgs", title: "Pricing_Help_Sales_Org" },
+        brand: { list: "brands", title: "Pricing_Help_Brand" },
+        customer: { list: "customers", title: "Pricing_Help_Customer" },
+        article: { list: "articles", title: "Pricing_Help_Article" }
+    };
+    var MAX_DRAFTS = 500; // rows one "Add" may create (product of the picked values)
 
     return Controller.extend("com.luxasia.campaignmanagement.controller.pricingConditions", {
         formatDate: pricingFormatter.date,
@@ -84,8 +96,8 @@ sap.ui.define([
             Promise.all([campaignService.init(oComponent), pricingService.init(oComponent)]).then(function () {
                 that.getView().setModel(pricingService.getModel(), "PricingModel");
                 that._filterRecords(sId);
-                // Brand value help is optional: typed brands are validated by S/4.
-                pricingService.loadBrands(campaignService.getStoreId());
+                // Sales org / brand / customer / article value help lists (CAP).
+                pricingService.loadValueHelps();
                 return Promise.all([that._campaign(sId), pricingService.loadConditions(sId), pricingService.loadConditionTypes(),
                     // Campaign picker: always the full list from CAP, also when the page is opened directly.
                     campaignService.listAll().catch(function () { return []; })]);
@@ -160,6 +172,10 @@ sap.ui.define([
                 customer: "",
                 article: "",
                 brand: "",
+                salesOrgTokens: [],
+                customerTokens: [],
+                articleTokens: [],
+                brandTokens: [],
                 rate: "",
                 rateUnit: bPercent ? pricingService.PERCENT : "",
                 pricingUnit: "",
@@ -229,18 +245,133 @@ sap.ui.define([
             this._applyCombination();
         },
 
-        onBrandSelected: function (oEvent) {
-            var oItem = oEvent.getParameter("selectedItem");
-            if (oItem) {
-                this._model().setProperty("/draft/brand", oItem.getKey());
+        // Field name from the control ID: pricingSalesOrg -> salesOrg.
+        _fieldOf: function (oControl) {
+            var sLocal = (this.getView().getLocalId(oControl.getId()) || "").replace(/^pricing/, "");
+            return sLocal.charAt(0).toLowerCase() + sLocal.slice(1);
+        },
+
+        // ------------------------------------------------------------ multi-select value helps
+
+        // Opens the multi-select value help of a key field, with the current tokens ticked.
+        onValueHelp: function (oEvent) {
+            var sField = this._fieldOf(oEvent.getSource());
+            var mPicked = {};
+            (this._model().getProperty("/draft/" + sField + "Tokens") || []).forEach(function (t) {
+                mPicked[t.key] = true;
+            });
+            var aItems = (pricingService.getModel().getProperty("/" + PICK[sField].list) || []).map(function (o) {
+                return { key: o.key, text: o.text === o.key ? "" : o.text, info: o.info || "", selected: !!mPicked[o.key] };
+            });
+            var oDialog = this._pickDialog(sField);
+            oDialog.getModel("vh").setData({ items: aItems });
+            oDialog.getBinding("items").filter([]);
+            oDialog.open("");
+        },
+
+        _pickDialog: function (sField) {
+            this._mPick = this._mPick || {};
+            if (this._mPick[sField]) {
+                return this._mPick[sField];
             }
-            this._clearState("brand");
+            var that = this;
+            var oVh = new JSONModel({ items: [] });
+            oVh.setSizeLimit(5000);
+            function search(oEvt) {
+                var sLower = (oEvt.getParameter("value") || "").toLowerCase();
+                oEvt.getSource().getBinding("items").filter(sLower ? [new Filter({
+                    path: "",
+                    test: function (o) {
+                        return (o.key + " " + o.text).toLowerCase().indexOf(sLower) !== -1;
+                    }
+                })] : []);
+            }
+            var oDialog = new SelectDialog({
+                title: this._i18n(PICK[sField].title),
+                noDataText: this._i18n("Pricing_Help_Empty"),
+                multiSelect: true,
+                rememberSelections: true,
+                growingThreshold: 200,
+                items: {
+                    path: "vh>/items",
+                    sorter: new Sorter("key"),
+                    templateShareable: false,
+                    template: new StandardListItem({
+                        title: "{vh>key}",
+                        description: "{vh>text}",
+                        info: "{vh>info}",
+                        selected: "{vh>selected}"
+                    })
+                },
+                search: search,
+                liveChange: search,
+                confirm: function () {
+                    // Read the ticks from the model, so values hidden by the search stay picked.
+                    that._setTokens(sField, oVh.getProperty("/items").filter(function (o) { return o.selected; }));
+                }
+            });
+            oDialog.setModel(oVh, "vh");
+            this.getView().addDependent(oDialog);
+            this._mPick[sField] = oDialog;
+            return oDialog;
+        },
+
+        // Tokens of a key field; the single draft value is the first one (used for the summary only,
+        // "Add" creates a row per picked value).
+        _setTokens: function (sField, aPicked) {
+            var oModel = this._model();
+            var aTokens = aPicked.map(function (o) { return { key: o.key, text: o.text || o.key }; });
+            oModel.setProperty("/draft/" + sField + "Tokens", aTokens);
+            oModel.setProperty("/draft/" + sField, aTokens.length ? aTokens[0].key : "");
+            this._clearState(sField);
+        },
+
+        // Token removed with its x / backspace.
+        onTokenUpdate: function (oEvent) {
+            if (oEvent.getParameter("type") !== "removed") {
+                return;
+            }
+            var sField = this._fieldOf(oEvent.getSource());
+            var mGone = {};
+            oEvent.getParameter("removedTokens").forEach(function (t) {
+                mGone[t.getKey()] = true;
+            });
+            this._setTokens(sField, (this._model().getProperty("/draft/" + sField + "Tokens") || []).filter(function (t) {
+                return !mGone[t.key];
+            }));
+        },
+
+        // One draft per combination of the picked values of the visible key fields. An empty field
+        // gives one row with "" so validation reports it as mandatory.
+        _expandDraft: function (oDraft) {
+            var oFields = this._model().getProperty("/fields") || {};
+            var aRows = [Object.assign({}, oDraft)];
+            Object.keys(PICK).forEach(function (sField) {
+                if (sField !== "salesOrg" && !oFields[sField]) {
+                    return;
+                }
+                var aKeys = (oDraft[sField + "Tokens"] || []).map(function (t) { return t.key; });
+                if (!aKeys.length) {
+                    aKeys = [""];
+                }
+                aRows = aRows.reduce(function (aOut, oRow) {
+                    return aOut.concat(aKeys.map(function (sKey) {
+                        var oNew = Object.assign({}, oRow);
+                        oNew[sField] = sKey;
+                        return oNew;
+                    }));
+                }, []);
+            });
+            return aRows.map(function (oRow) {
+                Object.keys(PICK).forEach(function (sField) {
+                    delete oRow[sField + "Tokens"];
+                });
+                return oRow;
+            });
         },
 
         onFieldChange: function (oEvent) {
-            // Control IDs are "pricing" + field name, e.g. pricingSalesOrg -> salesOrg.
-            var sLocal = (this.getView().getLocalId(oEvent.getSource().getId()) || "").replace(/^pricing/, "");
-            var sField = sLocal.charAt(0).toLowerCase() + sLocal.slice(1);
+            var sField = this._fieldOf(oEvent.getSource());
             if (FIELDS.indexOf(sField) !== -1) {
                 this._clearState(sField);
             }
@@ -276,13 +407,21 @@ sap.ui.define([
             var that = this;
             var oModel = this._model();
             oModel.setProperty("/busy", true);
-            pricingService.addDraft(oModel.getProperty("/draft")).then(function () {
+            var aDrafts = this._expandDraft(oModel.getProperty("/draft"));
+            if (aDrafts.length > MAX_DRAFTS) {
+                oModel.setProperty("/busy", false);
+                MessageBox.error(this._i18n("Pricing_Too_Many_Drafts", [aDrafts.length, MAX_DRAFTS]));
+                return;
+            }
+            pricingService.addDrafts(aDrafts).then(function (aAdded) {
                 that._filterRecords(oModel.getProperty("/campaignId"));
-                ["customer", "article", "brand", "rate"].forEach(function (k) {
-                    oModel.setProperty("/draft/" + k, "");
+                ["customer", "article", "brand"].forEach(function (k) {
+                    that._setTokens(k, []);
                 });
+                oModel.setProperty("/draft/rate", "");
                 that._clearStates();
-                MessageToast.show(that._i18n("Pricing_Draft_Added"));
+                MessageToast.show(aAdded.length > 1 ? that._i18n("Pricing_Drafts_Added", [aAdded.length]) :
+                    that._i18n("Pricing_Draft_Added"));
             }).catch(function (oError) {
                 that._showMessages(oError.messages || [{ text: oError.message }]);
             }).finally(function () {
