@@ -86,11 +86,13 @@ sap.ui.define([
                 that._filterRecords(sId);
                 // Brand value help is optional: typed brands are validated by S/4.
                 pricingService.loadBrands(campaignService.getStoreId());
-                return Promise.all([that._campaign(sId), pricingService.loadConditions(sId), pricingService.loadConditionTypes()]);
+                return Promise.all([that._campaign(sId), pricingService.loadConditions(sId), pricingService.loadConditionTypes(),
+                    // Campaign picker: always the full list from CAP, also when the page is opened directly.
+                    campaignService.listAll().catch(function () { return []; })]);
             }).then(function (aResults) {
                 var oCampaign = aResults[0];
                 oModel.setProperty("/country", oCampaign.country);
-                oModel.setProperty("/campaigns", that._campaignList(oCampaign));
+                oModel.setProperty("/campaigns", that._campaignList(oCampaign, aResults[3]));
                 // Condition types from CAP ConditionTypes (code + DESCRIPTION) only.
                 var aTypes = aResults[2];
                 oModel.setProperty("/types", aTypes);
@@ -115,9 +117,9 @@ sap.ui.define([
             return Promise.resolve(campaignService.getCached(sId) || campaignService.get(sId));
         },
 
-        // Campaign picker: the list's campaigns, plus this one when opened by direct link.
-        _campaignList: function (oCurrent) {
-            var aList = (campaignService.getModel().getProperty("/campaigns") || []).map(function (c) {
+        // Campaign picker: all campaigns (Campaigns, newest first), plus this one if it is not among them.
+        _campaignList: function (oCurrent, aCampaigns) {
+            var aList = (aCampaigns || []).map(function (c) {
                 return { id: c.id, description: c.description };
             });
             if (!aList.some(function (c) { return c.id === oCurrent.id; })) {

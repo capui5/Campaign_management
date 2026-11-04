@@ -63,6 +63,12 @@
 .campCardTitle.sapMTitle {
     margin-bottom: 0.75rem;
 }
+/* Hidden fields (e.g. Hierarchy / Brand when the combination has no brand) keep their Grid cell,
+   because sap.ui.layout.Grid wraps even an invisible control's placeholder in a span div. Drop
+   those cells so the next field moves up instead of leaving a gap. */
+.campFieldGrid > div:has(> .sapUiHiddenPlaceholder) {
+    display: none;
+}
 .campFieldGrid > div > .sapMFlexBox {
     margin-bottom: 0.75rem;
 }

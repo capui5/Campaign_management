@@ -442,6 +442,15 @@ sap.ui.define([
 			return _readPage(_oPaging);
 		},
 
+		// All campaigns of the allowed countries for a picker (pricing screen), newest first, read
+		// 20 per request (API §4.1). Does not change the campaign list's /campaigns.
+		listAll: function () {
+			var oPaging = _searchQuery({});
+			return capService.listPaged(CAP_CAMPAIGNS, oPaging.query, PAGE_SIZE).then(function (oResult) {
+				return oResult.value.map(_toCampaign).filter(oPaging.matches);
+			});
+		},
+
 		// Every page of a search (20 per request), e.g. for the overview counts.
 		searchAll: function (oCriteria) {
 			var oPaging = _searchQuery(oCriteria);
