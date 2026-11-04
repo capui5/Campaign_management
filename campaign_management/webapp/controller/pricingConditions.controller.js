@@ -29,7 +29,9 @@ sap.ui.define([
         salesOrg: { list: "salesOrgs", title: "Pricing_Help_Sales_Org" },
         brand: { list: "brands", title: "Pricing_Help_Brand" },
         customer: { list: "customers", title: "Pricing_Help_Customer" },
-        article: { list: "articles", title: "Pricing_Help_Article" }
+        article: { list: "articles", title: "Pricing_Help_Article" },
+        rateUnit: { list: "currencies", title: "Pricing_Help_Currency" },
+        uom: { list: "uoms", title: "Pricing_Help_Uom" }
     };
     var MAX_DRAFTS = 500; // rows one "Add" may create (product of the picked values)
 
@@ -176,6 +178,8 @@ sap.ui.define([
                 customerTokens: [],
                 articleTokens: [],
                 brandTokens: [],
+                rateUnitTokens: [],
+                uomTokens: [],
                 rate: "",
                 rateUnit: bPercent ? pricingService.PERCENT : "",
                 pricingUnit: "",
@@ -341,13 +345,28 @@ sap.ui.define([
             }));
         },
 
+        // Whether a multi-select field is shown (and so part of the combinations): customer / article /
+        // brand follow the key combination, currency is a fixed "%" for discounts, unit of measure is
+        // only for prices.
+        _pickShown: function (sField) {
+            var oModel = this._model();
+            var sKind = oModel.getProperty("/kind");
+            if (sField === "rateUnit") {
+                return sKind !== "percent";
+            }
+            if (sField === "uom") {
+                return sKind === "price";
+            }
+            return sField === "salesOrg" || !!(oModel.getProperty("/fields") || {})[sField];
+        },
+
         // One draft per combination of the picked values of the visible key fields. An empty field
         // gives one row with "" so validation reports it as mandatory.
         _expandDraft: function (oDraft) {
-            var oFields = this._model().getProperty("/fields") || {};
+            var that = this;
             var aRows = [Object.assign({}, oDraft)];
             Object.keys(PICK).forEach(function (sField) {
-                if (sField !== "salesOrg" && !oFields[sField]) {
+                if (!that._pickShown(sField)) {
                     return;
                 }
                 var aKeys = (oDraft[sField + "Tokens"] || []).map(function (t) { return t.key; });

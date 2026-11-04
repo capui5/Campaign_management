@@ -75,6 +75,8 @@
                 <EntitySet Name="Articles" EntityType="LuxasiaSB.Articles"/>
                 <EntitySet Name="BrandsMaster" EntityType="LuxasiaSB.BrandsMaster"/>
                 <EntitySet Name="Customers" EntityType="LuxasiaSB.Customers"/>
+                <EntitySet Name="Currencies" EntityType="LuxasiaSB.Currencies"/>
+                <EntitySet Name="UnitsOfMeasure" EntityType="LuxasiaSB.UnitsOfMeasure"/>
                 <EntitySet Name="CampaignPricingRecords" EntityType="LuxasiaSB.CampaignPricingRecords">
                     <NavigationPropertyBinding Path="CONDITION_TYPE" Target="ConditionTypes"/>
                     <NavigationPropertyBinding Path="KEY_COMBINATION" Target="KeyCombinations"/>
@@ -171,6 +173,19 @@
                 <Property Name="CUSTOMER_NAME" Type="Edm.String" MaxLength="80"/>
                 <Property Name="CITY" Type="Edm.String" MaxLength="40"/>
                 <Property Name="COUNTRY" Type="Edm.String" MaxLength="3"/>
+            </EntityType>
+            <EntityType Name="Currencies">
+                <Key>
+                    <PropertyRef Name="CURRENCY"/>
+                </Key>
+                <Property Name="CURRENCY" Type="Edm.String" MaxLength="5" Nullable="false"/>
+            </EntityType>
+            <EntityType Name="UnitsOfMeasure">
+                <Key>
+                    <PropertyRef Name="UNIT_OF_MEASURE"/>
+                </Key>
+                <Property Name="UNIT_OF_MEASURE" Type="Edm.String" MaxLength="3" Nullable="false"/>
+                <Property Name="DESCRIPTION" Type="Edm.String" MaxLength="30"/>
             </EntityType>
             <EntityType Name="Campaigns">
                 <Key>

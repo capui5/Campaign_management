@@ -42,6 +42,8 @@ sap.ui.define([
 	//   BrandsMaster          BRAND, DESCRIPTION, LANGUAGE                loaded once
 	//   Customers             CUSTOMER, CUSTOMER_NAME, CITY, COUNTRY      loaded once
 	//   Articles              ARTICLE_SKU, DESCRIPTION, SPRAS             loaded once
+	//   Currencies            CURRENCY                                    loaded once
+	//   UnitsOfMeasure        UNIT_OF_MEASURE, DESCRIPTION                loaded once
 	//
 	// S/4 is written only by save(); drafts, deletions and the configuration go to CAP only.
 	//
@@ -61,6 +63,8 @@ sap.ui.define([
 	var BRAND_SET = "BrandsMaster";
 	var CUSTOMER_SET = "Customers";
 	var ARTICLE_SET = "Articles";
+	var CURRENCY_SET = "Currencies";
+	var UOM_SET = "UnitsOfMeasure";
 	var VALUE_HELP_LIMIT = 5000; // entries per dropdown (the views bind with length: 5000)
 
 	// Row property -> CampaignPricingRecords property (API §5).
@@ -271,6 +275,18 @@ sap.ui.define([
 			items: function (aRows) {
 				return _uniqueItems(_byLanguage(aRows, "SPRAS"), function (r) { return r.ARTICLE_SKU; },
 					function (r) { return r.DESCRIPTION; });
+			}
+		},
+		currencies: {
+			set: CURRENCY_SET,
+			items: function (aRows) {
+				return _uniqueItems(aRows, function (r) { return r.CURRENCY; }, function () { return ""; });
+			}
+		},
+		uoms: {
+			set: UOM_SET,
+			items: function (aRows) {
+				return _uniqueItems(aRows, function (r) { return r.UNIT_OF_MEASURE; }, function (r) { return r.DESCRIPTION; });
 			}
 		}
 	};
@@ -1016,7 +1032,7 @@ sap.ui.define([
 	}
 
 	function _newModel() {
-		return new JSONModel({ conditions: [], configs: [], brands: [], salesOrgs: [], customers: [], articles: [], available: {}, serviceError: "", keysError: "" });
+		return new JSONModel({ conditions: [], configs: [], brands: [], salesOrgs: [], customers: [], articles: [], currencies: [], uoms: [], available: {}, serviceError: "", keysError: "" });
 	}
 
 	function _publishAvailability() {
@@ -1163,7 +1179,7 @@ sap.ui.define([
 			aRows.forEach(function (oRow, i) {
 				var aOthers = conditionsOf(oRow.campaignId).concat(aRows.slice(0, i));
 				validateRow(oRow, aOthers).forEach(function (m) {
-					var sKeys = ["salesOrg", "customer", "article", "brand"].map(function (k) { return oRow[k]; })
+					var sKeys = ["salesOrg", "customer", "article", "brand", "rateUnit", "uom"].map(function (k) { return oRow[k]; })
 						.filter(Boolean).join(" / ");
 					var oMsg = aRows.length > 1 && sKeys ? Object.assign({}, m, { text: sKeys + ": " + m.text }) : m;
 					if (!mSeen[oMsg.text]) {
@@ -1255,8 +1271,9 @@ sap.ui.define([
 			});
 		},
 
-		// Dropdown lists from CAP (SalesOrganizations, BrandsMaster, Customers, Articles), read once per
-		// session, up to VALUE_HELP_LIMIT entries each, into /salesOrgs, /brands, /customers, /articles.
+		// Value help lists from the CAP backend (SalesOrganizations, BrandsMaster, Customers, Articles,
+		// Currencies, UnitsOfMeasure), read once per session, up to VALUE_HELP_LIMIT entries each, into
+		// /salesOrgs, /brands, /customers, /articles, /currencies, /uoms.
 		// A failed read leaves only that list empty.
 		loadValueHelps: function () {
 			if (!_pValueHelps) {

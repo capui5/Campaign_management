@@ -136,8 +136,17 @@
                         <VBox>
                             <Label text="{= ${pricing>/kind} === 'percent' ? ${i18n>Pricing_Unit} : ${i18n>Pricing_Currency} }" labelFor="pricingRateUnit"
                                 required="{= ${pricing>/kind} !== 'percent' }" />
-                            <Input id="pricingRateUnit" value="{pricing>/draft/rateUnit}" maxLength="5" editable="{= ${pricing>/kind} !== 'percent' }"
-                                valueState="{pricing>/state/rateUnit}" valueStateText="{pricing>/stateText/rateUnit}" liveChange="onFieldChange" />
+                            <Input id="pricingPercentUnit" value="{pricing>/draft/rateUnit}" editable="false"
+                                visible="{= ${pricing>/kind} === 'percent' }" />
+                            <MultiInput id="pricingRateUnit" width="100%" showValueHelp="true" valueHelpOnly="true"
+                                valueHelpRequest="onValueHelp" tokenUpdate="onTokenUpdate" placeholder="{i18n>Pricing_Pick_Placeholder}"
+                                tokens="{path: 'pricing>/draft/rateUnitTokens', templateShareable: false}"
+                                visible="{= ${pricing>/kind} !== 'percent' }"
+                                valueState="{pricing>/state/rateUnit}" valueStateText="{pricing>/stateText/rateUnit}">
+                                <tokens>
+                                    <Token key="{pricing>key}" text="{pricing>key}" tooltip="{pricing>text}" />
+                                </tokens>
+                            </MultiInput>
                         </VBox>
                         <VBox visible="{= ${pricing>/kind} === 'price' }">
                             <Label text="{i18n>Pricing_Pricing_Unit}" labelFor="pricingPricingUnit" required="true" />
@@ -146,8 +155,14 @@
                         </VBox>
                         <VBox visible="{= ${pricing>/kind} === 'price' }">
                             <Label text="{i18n>Pricing_Uom}" labelFor="pricingUom" required="true" />
-                            <Input id="pricingUom" value="{pricing>/draft/uom}" maxLength="3"
-                                valueState="{pricing>/state/uom}" valueStateText="{pricing>/stateText/uom}" liveChange="onFieldChange" />
+                            <MultiInput id="pricingUom" width="100%" showValueHelp="true" valueHelpOnly="true"
+                                valueHelpRequest="onValueHelp" tokenUpdate="onTokenUpdate" placeholder="{i18n>Pricing_Pick_Placeholder}"
+                                tokens="{path: 'pricing>/draft/uomTokens', templateShareable: false}"
+                                valueState="{pricing>/state/uom}" valueStateText="{pricing>/stateText/uom}">
+                                <tokens>
+                                    <Token key="{pricing>key}" text="{pricing>key}" tooltip="{pricing>text}" />
+                                </tokens>
+                            </MultiInput>
                         </VBox>
                     </l:Grid>
                     <HBox justifyContent="End" class="sapUiSmallMarginTop">
