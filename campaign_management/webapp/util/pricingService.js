@@ -724,8 +724,10 @@ sap.ui.define([
 		return oRow;
 	}
 
-	// API §5.2 body; only the key fields of the selected combination are filled.
-	function _recordPayload(oRow, sUser) {
+	// API §5.2 body; only the key fields of the selected combination are filled. CREATED_BY / _AT and
+	// MODIFIED_BY / _AT are not sent: the deployed CampaignPricingRecords entity has no such
+	// properties ("Property CREATED_BY does not exist"); audit data, if any, is set by the service.
+	function _recordPayload(oRow) {
 		var aFields = fieldsOf(oRow.combination);
 		var sKind = (_mTypes[oRow.conditionType] || {}).kind;
 		var o = {};
@@ -749,9 +751,6 @@ sap.ui.define([
 		o[FIELD.recordNo] = null;
 		o[FIELD.tableNo] = oRow.tableNo || null;
 		o[FIELD.message] = null;
-		if (sUser) {
-			o[FIELD.createdBy] = sUser;
-		}
 		return o;
 	}
 
@@ -1156,13 +1155,11 @@ sap.ui.define([
 				return Promise.resolve(oRow);
 			}
 			oRow.rowId = capService.uuid();
-			return capService.userName().then(function (sUser) {
-				var oPayload = _recordPayload(oRow, sUser);
-				return capService.create(RECORD_SET, oPayload).then(function (oData) {
-					var oSaved = _rowFromBackend(Object.assign({}, oPayload, oData || {}));
-					_setRows(_rows().concat([oSaved]));
-					return oSaved;
-				});
+			var oPayload = _recordPayload(oRow);
+			return capService.create(RECORD_SET, oPayload).then(function (oData) {
+				var oSaved = _rowFromBackend(Object.assign({}, oPayload, oData || {}));
+				_setRows(_rows().concat([oSaved]));
+				return oSaved;
 			});
 		},
 
