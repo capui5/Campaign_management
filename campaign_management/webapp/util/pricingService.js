@@ -1,99 +1,160 @@
 sap.ui.define([
 	"sap/ui/model/json/JSONModel",
 	"sap/ui/model/Filter",
-	"sap/ui/model/FilterOperator"
-], function (JSONModel, Filter, FilterOperator) {
+	"sap/ui/model/FilterOperator",
+	"com/luxasia/campaignmanagement/util/capService"
+], function (JSONModel, Filter, FilterOperator, capService) {
 	"use strict";
 
 	// Campaign pricing conditions + Axxx key configuration facade (Campaign Management FDD/TDD v1.1,
-	// §3, §4.2, §5 "Pricing tab", §12, §13, §19 - §21).
+	// §3, §4.2, §5 "Pricing tab", §12, §13, §19 - §21; Campaign & Pricing Management API v1.0).
 	//
 	// The UI talks only to this module; every public method that calls the backend returns a Promise.
 	//
-	// Backend: mainModel (ZSDGW_CE_APP_SRV). The FDD's pricing services are proposed, not built yet:
-	//   CONDITION_SET  ZSD_CAMP_COND link + SaveBatch orchestration (§8 ZUI_CAMPAIGN_PRICING)
-	//     read    CampaignConditionSet?$filter=CampaignId eq 'C-...'   records linked to a campaign
-	//     create  POST CampaignConditionSet                             one row per condition record (§9
-	//                                                                   payload); returns ConditionRecordNo
-	//     delimit MERGE CampaignConditionSet('<KNUMH>')                  new ValidTo only
-	//   CONFIG_SET     ZSD_CAMP_CONFC (§18.1, §21 CampaignPricingConfiguration)
-	//     read    CampaignPricingConfigSet                              20 type/combination mappings
-	//     save    POST CampaignPricingConfigSet                         backend validates and returns
-	//                                                                   ValidationStatus (§21.1)
-	//   BrandSet       brand value help (WRF_BRANDS), filtered by store like the sales order app.
-	//   ConditionsSet  condition types (CondType / CondTypeDesc), read unfiltered like the sales order
-	//                  app. Only the types in CONDITION_TYPES are offered (each needs its key
-	//                  combinations and value kind); when the backend returns none of them the FDD list
-	//                  is used and conditionTypesSource is "fallback".
-	// init() checks the service metadata: while an entity set is missing, drafts and configuration
-	// edits stay in this browser session only and every S/4 save is refused with a clear message
-	// (§13: no false success; retain client draft and allow retry).
+	// Backend 1: CAP service /luxasia/oDataV4 (capService, destination LUXASIA_CAP):
+	//   ConditionTypes?$filter=IS_ACTIVE eq true                         condition types (API §2.1):
+	//                                                                    code, description, LEVEL,
+	//                                                                    VALUE_KIND (PRICE/AMOUNT/PERCENT)
+	//   ConditionTypeKeyCombinations?$expand=CONDITION_TYPE,             full configuration matrix
+	//     KEY_COMBINATION                                                (API §3.2)
+	//   ConditionTypeKeyCombinations?$filter=CONDITION_TYPE_ID eq <ID>   mappings of one condition type
+	//     and IS_ACTIVE eq true&$expand=KEY_COMBINATION(                 with the business keys of each
+	//     $expand=BUSINESS_KEYS)                                         combination (API §3.1); read
+	//                                                                    per active type on init (key
+	//                                                                    fields, DIST_CHANNEL default)
+	//   PATCH ConditionTypeKeyCombinations(CONDITION_TYPE_ID=..,         table number / default / active
+	//     KEY_COMBINATION_ID=..)                                         (API §3.3)
+	//   CampaignPricingRecords?$filter=CAMPAIGN_ID eq '..'               the campaign's records (API §5.1)
+	//     &$expand=CONDITION_TYPE,KEY_COMBINATION
+	//   POST CampaignPricingRecords                                      new record, STATUS DRAFT (§5.2)
+	//   PATCH CampaignPricingRecords('<ID>')                             STATUS POSTED + RECORD_NUMBER, or
+	//                                                                    STATUS FAILED + ERROR_MESSAGE
+	//                                                                    after the S/4 post (§5.3, §5.4)
+	//   DELETE CampaignPricingRecords('<ID>')                            remove a draft / failed record (§5.5)
 	//
-	// Property names are mapped once in FIELD / CONFIG_FIELD so they can follow the final backend.
+	// Backend 2: S/4 standard API API_SLSPRICINGCONDITIONRECORD_SRV (model of the same name), used
+	// only by save() ("Save to S/4"):
+	//   POST A_SlsPrcgConditionRecord   deep insert of the condition record with one
+	//                                   to_SlsPrcgCndnRecdValidity entry; returns ConditionRecord (KNUMH).
+	//   The validity key properties follow the business keys of the record's key combination
+	//   (BUSINESS_KEYS.S4_FIELD, see S4_KEY_PROPERTY), so every condition table gets only its own keys.
+	//
+	// Backend 3: mainModel (ZSDGW_CE_APP_SRV, S/4), read only:
+	//   BrandSet              brand value help (WRF_BRANDS), filtered by store like the sales order app.
+	//
+	// S/4 is written only by save(); drafts, deletions and the configuration go to CAP only.
+	//
+	// Condition types, key combinations and business keys come only from the CAP service. When it
+	// cannot be reached the catalogue stays empty ("available.config" / "available.records" false) and
+	// the service error is published in /serviceError.
 
-	var CONDITION_SET = "/CampaignConditionSet";
-	var CONFIG_SET = "/CampaignPricingConfigSet";
+	var TYPE_SET = "ConditionTypes";
+	var TYPE_COMB_SET = "ConditionTypeKeyCombinations";
+	var RECORD_SET = "CampaignPricingRecords";
+
+	var S4_MODEL = "API_SLSPRICINGCONDITIONRECORD_SRV";
+	var S4_CONDITION_SET = "/A_SlsPrcgConditionRecord";
+	var S4_VALIDITY_TYPE = "A_SlsPrcgCndnRecdValidityType";
+	var S4_APPLICATION = "V"; // sales
 	var BRAND_SET = "/BrandSet";
-	var CONDITION_TYPE_SET = "/ConditionsSet";
 
-	// Row property -> CampaignConditionSet property (§9 SaveBatch item DTO).
+	// Row property -> CampaignPricingRecords property (API §5).
 	var FIELD = {
-		rowId: "ClientRowId",
-		campaignId: "CampaignId",
-		conditionType: "ConditionType",     // KSCHL
-		combination: "AccessCombination",   // COMB_ID
-		salesOrg: "SalesOrganization",      // VKORG
-		distChannel: "DistributionChannel", // VTWEG
-		customer: "Customer",               // KUNNR
-		article: "Article",                 // MATNR
-		hierarchy: "Hierarchy",
-		brand: "Brand",                     // hierarchy node, WRF_BRANDS
-		rate: "Rate",                       // KBETR, sent as a decimal string
-		rateUnit: "RateUnit",               // currency or PERCENT
-		pricingUnit: "PricingUnit",         // KPEIN (ZSRP)
-		uom: "UnitOfMeasure",               // KMEIN (ZSRP)
-		validFrom: "ValidFrom",             // DATAB, YYYYMMDD
-		validTo: "ValidTo",                 // DATBI, YYYYMMDD
-		tableNo: "ConditionTableNumber",    // KOTABNR snapshot (§22)
-		recordNo: "ConditionRecordNo",      // KNUMH
-		createdBy: "CreatedBy",
-		createdOn: "CreatedAt"
+		rowId: "ID",
+		campaignId: "CAMPAIGN_ID",
+		conditionType: "CONDITION_CODE",       // KSCHL
+		combination: "COMBINATION_CODE",
+		salesOrg: "SALES_ORG",                 // VKORG
+		distChannel: "DISTRIBUTION_CHANNEL",   // VTWEG
+		customer: "CUSTOMER",                  // KUNNR
+		article: "ARTICLE_SKU",                // MATNR
+		brand: "BRAND",
+		hierarchy: "HIERARCHY",
+		validFrom: "VALID_FROM",               // Edm.Date YYYY-MM-DD
+		validTo: "VALID_TO",
+		rate: "CONDITION_VALUE",               // KBETR
+		rateUnit: "CURRENCY",                  // KONWA (empty for percentages)
+		pricingUnit: "PRICING_UNIT",           // KPEIN (price kind)
+		uom: "UNIT_OF_MEASURE",                // KMEIN (price kind)
+		status: "STATUS",
+		recordNo: "RECORD_NUMBER",             // KNUMH
+		tableNo: "CONDITION_TABLE_NUMBER",     // KOTABNR snapshot (§22)
+		message: "ERROR_MESSAGE",
+		createdBy: "CREATED_BY",
+		createdOn: "CREATED_AT",
+		changedBy: "MODIFIED_BY",
+		changedOn: "MODIFIED_AT"
 	};
 
-	// Configuration entry -> CampaignPricingConfigSet property (§21.2 payload).
-	var CONFIG_FIELD = {
-		conditionType: "ConditionType",
-		combination: "CombinationId",
-		tableNo: "ConditionTableNumber",
-		fieldSet: "FieldSet",
-		active: "Active",
-		isDefault: "Default",
-		validation: "ValidationStatus"
+	// CampaignPricingRecords.STATUS values.
+	var RECORD_STATUS = {
+		DRAFT: "DRAFT",
+		POSTED: "POSTED",
+		FAILED: "FAILED"
 	};
 
-	// Logical key combinations (§19). Every combination also carries Sales Org, Distribution Channel
-	// and the Campaign ID ("ID" / "Campaign" in VK11 are the same business value).
-	var COMBINATIONS = {
-		KC01: { fields: ["customer", "article"], fieldSet: "CAMPAIGN_CUSTOMER_ARTICLE" },
-		KC02: { fields: ["article"], fieldSet: "CAMPAIGN_ARTICLE" },
-		KC03: { fields: ["brand"], fieldSet: "CAMPAIGN_BRAND" },
-		KC04: { fields: ["brand", "customer"], fieldSet: "CAMPAIGN_BRAND_CUSTOMER" },
-		KC05: { fields: ["customer"], fieldSet: "CAMPAIGN_CUSTOMER" },
-		KC06: { fields: [], fieldSet: "CAMPAIGN" }
+	// Business key -> property of to_SlsPrcgCndnRecdValidity. Looked up by BUSINESS_KEYS.S4_FIELD
+	// first, then by FIELD_CODE. An S4_FIELD that already is a validity property name (e.g.
+	// ProdUnivHierarchyNode) is used as it is, so new key fields need configuration only, no code.
+	var S4_KEY_PROPERTY = {
+		VKORG: "SalesOrganization",
+		SALES_ORG: "SalesOrganization",
+		VTWEG: "DistributionChannel",
+		DIST_CHANNEL: "DistributionChannel",
+		CAMPAIGN: "ZZCAMPAIGN",
+		ZZCAMPAIGN: "ZZCAMPAIGN",
+		KUNNR: "Customer",
+		CUSTOMER: "Customer",
+		MATNR: "Material",
+		ARTICLE: "Material",
+		ARTICLE_SKU: "Material"
 	};
 
-	// Condition types (§2, §3). kind: price = amount + currency + pricing unit; amount = amount +
+	// BUSINESS_KEYS.FIELD_CODE spellings -> the code used below. The CAP service sends
+	// DISTRIBUTION_CHANNEL, the API document DIST_CHANNEL.
+	var KEY_ALIAS = {
+		DISTRIBUTION_CHANNEL: "DIST_CHANNEL",
+		DISTR_CHANNEL: "DIST_CHANNEL",
+		VTWEG: "DIST_CHANNEL",
+		SALES_ORGANIZATION: "SALES_ORG",
+		CAMPAIGN_ID: "CAMPAIGN",
+		CUSTOMER_NUMBER: "CUSTOMER"
+	};
+
+	function _keyCode(sFieldCode) {
+		var sCode = String(sFieldCode || "").trim().toUpperCase();
+		return KEY_ALIAS[sCode] || sCode;
+	}
+
+	// BUSINESS_KEYS.FIELD_CODE (normalized by _keyCode) -> row property holding its value.
+	var KEY_VALUE = {
+		SALES_ORG: "salesOrg",
+		DIST_CHANNEL: "distChannel",
+		CAMPAIGN: "campaignId",
+		CUSTOMER: "customer",
+		ARTICLE: "article",
+		ARTICLE_SKU: "article",
+		BRAND: "brand",
+		HIERARCHY: "hierarchy"
+	};
+
+	// BUSINESS_KEYS.FIELD_CODE -> logical key field of a row. SALES_ORG, DIST_CHANNEL and CAMPAIGN are
+	// part of every combination; HIERARCHY comes with BRAND.
+	var KEY_FIELD = {
+		CUSTOMER: "customer",
+		ARTICLE: "article",
+		ARTICLE_SKU: "article",
+		BRAND: "brand"
+	};
+
+	// ConditionTypes.VALUE_KIND -> kind: price = amount + currency + pricing unit; amount = amount +
 	// currency; percent = percentage.
-	var CONDITION_TYPES = {
-		ZSRP: { kind: "price", level: "item", combinations: ["KC01", "KC02"] },
-		ZVHR: { kind: "amount", level: "item", combinations: ["KC01", "KC02", "KC03", "KC04", "KC05"] },
-		ZCVO: { kind: "amount", level: "header", combinations: ["KC03", "KC05", "KC06"] },
-		ZPWP: { kind: "percent", level: "item", combinations: ["KC01", "KC02", "KC03", "KC04", "KC05"] },
-		ZPW1: { kind: "percent", level: "header", combinations: ["KC01", "KC02", "KC03", "KC04", "KC05"] }
+	var VALUE_KIND = {
+		PRICE: "price",
+		AMOUNT: "amount",
+		PERCENT: "percent"
 	};
 
-	var DEFAULT_DIST_CHANNEL = "10"; // §2, editable only if authorized (checked in S/4)
-	var DEFAULT_HIERARCHY = "L2";    // §2, brand combinations
 	var PERCENT = "%";
 
 	// Condition currency proposed from the campaign country (Luxasia markets, see campaignService).
@@ -102,35 +163,42 @@ sap.ui.define([
 		IN: "INR", AU: "AUD", HK: "HKD", TW: "TWD", CN: "CNY"
 	};
 
-	// Row status (app-level, §2 "Activation": not a standard SAP condition status).
+	// Row status shown in the UI. Draft / Posted / Failed mirror CampaignPricingRecords.STATUS;
+	// Error is a client-side validation result and is never stored.
 	var STATUS = {
 		DRAFT: "Draft",
 		ERROR: "Error",
-		SAVED: "Saved",
+		POSTED: "Posted",
 		FAILED: "Failed"
 	};
 
 	var STATUS_STATE = {
 		"Draft": "Information",
 		"Error": "Error",
-		"Saved": "Success",
+		"Posted": "Success",
 		"Failed": "Error"
 	};
 
-	// Configuration validation status (§20 / §21.1), set by the S/4 backend only.
+	// Save state of a configuration entry in the CAP service.
 	var VALIDATION = {
-		NOT_VALIDATED: "NotValidated",
-		VALID: "Valid",
-		INVALID: "Invalid"
+		LOCAL: "Local",       // fallback catalogue, not stored anywhere
+		SAVED: "Saved",       // as read from / last saved to the service
+		CHANGED: "Changed",   // edited here, not saved yet
+		FAILED: "Failed"      // last PATCH rejected
 	};
 
 	var _oComponent = null;
 	var _oModel = null;
 	var _pInit = null;
 	var _pBrands = null;
-	var _pTypes = null;
 	var _iRowSeq = 0;
-	var _mAvailable = { conditions: false, config: false };
+	var _mAvailable = { config: false, records: false, posting: false };
+	var _aValidityProps = []; // property names of to_SlsPrcgCndnRecdValidity
+
+	// Catalogue: condition types and key combinations, from CAP only.
+	var _mTypes = {};     // code -> { id, code, description, level, kind }
+	var _aTypeOrder = []; // codes in display order
+	var _mCombs = {};     // code -> { id, code, description, active, fields, keys }
 
 	// ---------------------------------------------------------------- messages
 
@@ -145,7 +213,7 @@ sap.ui.define([
 		return { type: "Error", text: sText, field: sField || "" };
 	}
 
-	// SAP Gateway error body -> messages (same parsing as campaignService).
+	// SAP Gateway (V2) error body -> messages (same parsing as campaignService).
 	function _fromODataError(oError) {
 		var aMsg = [];
 		try {
@@ -167,7 +235,7 @@ sap.ui.define([
 		return _throw(aMsg);
 	}
 
-	// ---------------------------------------------------------------- backend calls
+	// ---------------------------------------------------------------- S/4 (V2) calls
 
 	function _main() {
 		return _oComponent.getModel("mainModel");
@@ -182,48 +250,52 @@ sap.ui.define([
 		});
 	}
 
+	function _s4() {
+		return _oComponent.getModel(S4_MODEL);
+	}
+
 	function _post(sSet, oPayload) {
 		return new Promise(function (resolve, reject) {
-			_main().create(sSet, oPayload, {
+			_s4().create(sSet, oPayload, {
 				success: function (oData) { resolve(oData || {}); },
 				error: function (oError) { reject(_fromODataError(oError)); }
 			});
 		});
 	}
 
-	function _merge(sPath, oPayload) {
-		return new Promise(function (resolve, reject) {
-			_main().update(sPath, oPayload, {
-				merge: true,
-				success: function (oData) { resolve(oData || {}); },
-				error: function (oError) { reject(_fromODataError(oError)); }
-			});
-		});
-	}
-
-	// Which of the proposed entity sets the deployed service exposes.
-	function _detectServices() {
-		var oMetaModel = _main().getMetaModel();
+	// Whether the S/4 pricing API is reachable; also reads the validity properties (key fields).
+	function _detectPosting() {
+		var oMetaModel = _s4() && _s4().getMetaModel();
+		if (!oMetaModel) {
+			_mAvailable.posting = false;
+			return Promise.resolve();
+		}
 		return oMetaModel.loaded().then(function () {
 			var oContainer = oMetaModel.getODataEntityContainer() || {};
-			var aSets = (oContainer.entitySet || []).map(function (s) { return "/" + s.name; });
-			_mAvailable.conditions = aSets.indexOf(CONDITION_SET) !== -1;
-			_mAvailable.config = aSets.indexOf(CONFIG_SET) !== -1;
-			_oModel.setProperty("/available", Object.assign({}, _mAvailable));
+			_mAvailable.posting = (oContainer.entitySet || []).some(function (s) { return "/" + s.name === S4_CONDITION_SET; });
+			var oType = oMetaModel.getODataEntityType(oContainer.namespace + "." + S4_VALIDITY_TYPE) ||
+				((oMetaModel.getServiceMetadata().dataServices.schema || []).reduce(function (aAll, oSchema) {
+					return aAll.concat(oSchema.entityType || []);
+				}, []).find(function (t) { return t.name === S4_VALIDITY_TYPE; }));
+			_aValidityProps = ((oType && oType.property) || []).map(function (p) { return p.name; });
+		}).catch(function () {
+			_mAvailable.posting = false;
 		});
 	}
 
-	// ---------------------------------------------------------------- dates
+	// ---------------------------------------------------------------- dates / numbers
 
 	function _day(d) {
 		return d ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null;
 	}
 
-	function _toYmd(d) {
-		if (!d) {
-			return "";
-		}
-		return String(d.getFullYear()) + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+	function _pad(n) {
+		return String(n).padStart(2, "0");
+	}
+
+	// Edm.Date
+	function _toIsoDate(d) {
+		return d ? d.getFullYear() + "-" + _pad(d.getMonth() + 1) + "-" + _pad(d.getDate()) : null;
 	}
 
 	function _parseDate(v) {
@@ -242,65 +314,236 @@ sap.ui.define([
 		return null;
 	}
 
-	// ---------------------------------------------------------------- configuration (§18, §19)
-
-	// The 20 approved condition-type / combination mappings; Axxx numbers stay empty until the
-	// SD team configures them (Addendum v1.1: never hardcode or infer table numbers).
-	function _defaultConfigs() {
-		var aConfigs = [];
-		Object.keys(CONDITION_TYPES).forEach(function (sType) {
-			CONDITION_TYPES[sType].combinations.forEach(function (sComb, i) {
-				aConfigs.push({
-					conditionType: sType,
-					combination: sComb,
-					fieldSet: COMBINATIONS[sComb].fieldSet,
-					tableNo: "",
-					active: true,
-					isDefault: i === 0,
-					validation: VALIDATION.NOT_VALIDATED,
-					dirty: false
-				});
-			});
-		});
-		return aConfigs;
+	// Edm.Decimal arrives as a number (or a string with IEEE754Compatible); 1.000 -> "1".
+	function _numText(v) {
+		if (v === undefined || v === null || v === "") {
+			return "";
+		}
+		var n = Number(v);
+		return isNaN(n) ? String(v) : String(n);
 	}
 
-	function _configFromBackend(r) {
+	function _num(s) {
+		var sTrim = String(s === undefined || s === null ? "" : s).trim();
+		return sTrim === "" ? null : Number(sTrim);
+	}
+
+	// ---------------------------------------------------------------- catalogue
+
+	function _fieldsFromKeys(aKeys) {
+		var aFields = [];
+		aKeys.forEach(function (k) {
+			var sField = KEY_FIELD[k.code];
+			if (sField && aFields.indexOf(sField) === -1) {
+				aFields.push(sField);
+			}
+		});
+		return aFields;
+	}
+
+	function _combFromBackend(o) {
+		var aKeys = (o.BUSINESS_KEYS || []).slice().sort(function (a, b) {
+			return (a.SEQUENCE || 0) - (b.SEQUENCE || 0);
+		}).map(function (k) {
+			return {
+				field: k.FIELD_CODE,
+				code: _keyCode(k.FIELD_CODE),
+				label: k.BUSINESS_KEY || k.FIELD_CODE,
+				s4Field: k.S4_FIELD || "",
+				sequence: k.SEQUENCE,
+				required: !!k.REQUIRED,
+				defaultValue: k.DEFAULT_VALUE || ""
+			};
+		});
 		return {
-			conditionType: r[CONFIG_FIELD.conditionType],
-			combination: r[CONFIG_FIELD.combination],
-			fieldSet: r[CONFIG_FIELD.fieldSet] || (COMBINATIONS[r[CONFIG_FIELD.combination]] || {}).fieldSet || "",
-			tableNo: r[CONFIG_FIELD.tableNo] === "TBD" ? "" : (r[CONFIG_FIELD.tableNo] || ""),
-			active: !!r[CONFIG_FIELD.active],
-			isDefault: !!r[CONFIG_FIELD.isDefault],
-			validation: r[CONFIG_FIELD.validation] || VALIDATION.NOT_VALIDATED,
+			id: o.ID,
+			code: o.COMBINATION_CODE,
+			description: o.DESCRIPTION || "",
+			active: o.IS_ACTIVE !== false,
+			fields: _fieldsFromKeys(aKeys),
+			keys: aKeys
+		};
+	}
+
+	// Condition types in the order the service returns them.
+	function _typeRank(sCode) {
+		var i = _aTypeOrder.indexOf(sCode);
+		return i === -1 ? _aTypeOrder.length : i;
+	}
+
+	function _sortConfigs(aConfigs) {
+		return aConfigs.sort(function (a, b) {
+			return (_typeRank(a.conditionType) - _typeRank(b.conditionType)) ||
+				a.conditionType.localeCompare(b.conditionType) || a.combination.localeCompare(b.combination);
+		});
+	}
+
+	// No catalogue: used until CAP has answered, and when it cannot be read.
+	function _clearCatalog() {
+		_mTypes = {};
+		_mCombs = {};
+		_aTypeOrder = [];
+		_oModel.setProperty("/configs", []);
+	}
+
+	function _configFromBackend(r, oComb) {
+		return {
+			conditionTypeId: r.CONDITION_TYPE_ID,
+			combinationId: r.KEY_COMBINATION_ID,
+			conditionType: (r.CONDITION_TYPE || {}).CONDITION_CODE,
+			combination: oComb.code,
+			fieldSet: oComb.description,
+			tableNo: r.CONDITION_TABLE_NUMBER === "TBD" ? "" : (r.CONDITION_TABLE_NUMBER || ""),
+			active: !!r.IS_ACTIVE,
+			isDefault: !!r.DEFAULT_FLAG,
+			validation: VALIDATION.SAVED,
 			dirty: false
 		};
 	}
 
-	// Backend rows replace the matching catalogue entries; combinations outside the approved
-	// catalogue are ignored.
-	function _loadConfigs() {
-		var aConfigs = _defaultConfigs();
-		if (!_mAvailable.config) {
-			_oModel.setProperty("/configs", aConfigs);
-			return Promise.resolve();
-		}
-		return _read(CONFIG_SET).then(function (aRows) {
-			aRows.map(_configFromBackend).forEach(function (o) {
+	// Active condition types (API §2.1) + the full configuration matrix with business keys (§3.1 /
+	// §3.2). Mappings of inactive condition types are not shown.
+	function _applyCatalog(aTypes, aRows) {
+		_mTypes = {};
+		_mCombs = {};
+		aTypes.forEach(function (t) {
+			var sCode = String(t.CONDITION_CODE || "").trim().toUpperCase();
+			if (sCode) {
+				_mTypes[sCode] = {
+					id: t.ID,
+					code: sCode,
+					description: t.DESCRIPTION || "",
+					level: String(t.LEVEL || "").toLowerCase(),
+					kind: VALUE_KIND[String(t.VALUE_KIND || "").toUpperCase()] || "amount"
+				};
+			}
+		});
+		_aTypeOrder = Object.keys(_mTypes);
+		var aConfigs = [];
+		aRows.forEach(function (r) {
+			var sType = String((r.CONDITION_TYPE || {}).CONDITION_CODE || "").trim().toUpperCase();
+			var oCombData = r.KEY_COMBINATION || {};
+			if (!_mTypes[sType] || !oCombData.COMBINATION_CODE) {
+				return;
+			}
+			if (!_mCombs[oCombData.COMBINATION_CODE]) {
+				_mCombs[oCombData.COMBINATION_CODE] = _combFromBackend(oCombData);
+			}
+			var oConfig = _configFromBackend(r, _mCombs[oCombData.COMBINATION_CODE]);
+			oConfig.conditionType = sType;
+			aConfigs.push(oConfig);
+		});
+		_oModel.setProperty("/configs", _sortConfigs(aConfigs));
+	}
+
+	function _configsOf(sType) {
+		return _configs().filter(function (c) { return c.conditionType === sType; });
+	}
+
+	// API §3.1: active mappings of one condition type with the business keys of their combinations
+	// (BUSINESS_KEYS: key fields, DIST_CHANNEL DEFAULT_VALUE, S/4 fields). Merged into the matrix of
+	// §3.2 (inactive mappings stay as read there); entries edited here and not saved yet are kept.
+	// CONDITION_TYPE is the navigation property to ConditionTypes (via the Guid CONDITION_TYPE_ID), so
+	// the API document's "CONDITION_TYPE eq 'ZSRP'" compares an association with a string and CAP
+	// answers 500. The type is filtered by its foreign key (ID from §2.1) instead, else by its code
+	// through the navigation path.
+	function _typeFilter(sType) {
+		var sId = String((_mTypes[sType] || {}).id || "");
+		return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(sId) ?
+			"CONDITION_TYPE_ID eq " + sId : "CONDITION_TYPE/CONDITION_CODE eq " + capService.literal(sType);
+	}
+
+	function _loadConfigsFor(sType) {
+		return capService.list(TYPE_COMB_SET, {
+			$filter: _typeFilter(sType) + " and IS_ACTIVE eq true",
+			$expand: "KEY_COMBINATION($expand=BUSINESS_KEYS)"
+		}).then(function (aRows) {
+			var aConfigs = _configs();
+			aRows.forEach(function (r) {
+				var oCombData = r.KEY_COMBINATION || {};
+				if (!oCombData.COMBINATION_CODE) {
+					return;
+				}
+				var oComb = _combFromBackend(oCombData);
+				_mCombs[oComb.code] = oComb;
+				var oFresh = _configFromBackend(r, oComb);
+				oFresh.conditionType = sType;
 				var i = aConfigs.findIndex(function (c) {
-					return c.conditionType === o.conditionType && c.combination === o.combination;
+					return c.conditionType === sType && c.combination === oComb.code;
 				});
-				if (i !== -1) {
-					aConfigs[i] = o;
+				if (i === -1) {
+					aConfigs.push(oFresh);
+				} else if (!aConfigs[i].dirty) {
+					aConfigs[i] = oFresh;
 				}
 			});
-			_oModel.setProperty("/configs", aConfigs);
+			_oModel.setProperty("/configs", _sortConfigs(aConfigs));
+			return _configsOf(sType);
+		});
+	}
+
+	// API §2.1 (condition types) + §3.2 (full matrix, exactly as documented: no business keys), then
+	// §3.1 per active condition type for the business keys the pricing form needs.
+	function _loadCatalog() {
+		return Promise.all([
+			capService.list(TYPE_SET, { $filter: "IS_ACTIVE eq true" }),
+			capService.list(TYPE_COMB_SET, { $expand: "CONDITION_TYPE,KEY_COMBINATION" })
+		]).then(function (aResults) {
+			_applyCatalog(aResults[0], aResults[1]);
+			_mAvailable.config = true;
+			_mAvailable.records = true;
+			_oModel.setProperty("/serviceError", "");
+			// §3.1 per type: a failure leaves the condition types and the matrix usable; only the
+			// business keys (key fields, DIST_CHANNEL / HIERARCHY defaults) of that type are missing.
+			var aFailed = [];
+			return Promise.all(_aTypeOrder.map(function (sType) {
+				return _loadConfigsFor(sType).catch(function (oError) {
+					aFailed.push(sType + ": " + oError.message);
+				});
+			})).then(function () {
+				_oModel.setProperty("/keysError", aFailed.length ? "The business keys of " + TYPE_COMB_SET +
+					" could not be read (" + aFailed.join("; ") + ")." : "");
+			});
+		}).catch(function (oError) {
+			_clearCatalog();
+			_mAvailable.config = false;
+			_mAvailable.records = false;
+			_oModel.setProperty("/serviceError", oError.message);
 		});
 	}
 
 	function _configs() {
 		return _oModel.getProperty("/configs") || [];
+	}
+
+	function typeInfo(sType) {
+		return _mTypes[sType] || null;
+	}
+
+	function combinationInfo(sComb) {
+		return _mCombs[sComb] || null;
+	}
+
+	function fieldsOf(sComb) {
+		return (_mCombs[sComb] || {}).fields || [];
+	}
+
+	// BUSINESS_KEYS.DEFAULT_VALUE of a key field of a combination ("" when not maintained).
+	function keyDefault(sComb, sFieldCode) {
+		var oKey = ((_mCombs[sComb] || {}).keys || []).find(function (k) { return k.code === sFieldCode; });
+		return (oKey && oKey.defaultValue) || "";
+	}
+
+	// Distribution channel of a combination: always the DIST_CHANNEL business key's DEFAULT_VALUE
+	// (API §3.1, "10"); it is not entered by the user.
+	function distChannelFor(sComb) {
+		return keyDefault(sComb, "DIST_CHANNEL");
+	}
+
+	// Hierarchy of a brand combination: always the HIERARCHY business key's DEFAULT_VALUE (API §3.1,
+	// "L2"); "" for combinations without a brand. It is not entered by the user.
+	function hierarchyFor(sComb) {
+		return fieldsOf(sComb).indexOf("brand") !== -1 ? keyDefault(sComb, "HIERARCHY") : "";
 	}
 
 	function getConfig(sType, sComb) {
@@ -309,13 +552,12 @@ sap.ui.define([
 		}) || null;
 	}
 
-	// Active combinations for a condition type in catalogue order (CFG-006: inactive ones are not
-	// offered for new records); the default one is the proposal.
+	// Active combinations for a condition type (CFG-006: inactive ones are not offered for new
+	// records); the default one is the proposal.
 	function combinationsFor(sType) {
-		return ((CONDITION_TYPES[sType] || {}).combinations || []).filter(function (sComb) {
-			var oCfg = getConfig(sType, sComb);
-			return oCfg && oCfg.active;
-		});
+		return _configs().filter(function (c) {
+			return c.conditionType === sType && c.active && (_mCombs[c.combination] || {}).active !== false;
+		}).map(function (c) { return c.combination; });
 	}
 
 	function defaultCombination(sType) {
@@ -328,8 +570,7 @@ sap.ui.define([
 		return sTableNo ? "A" + sTableNo : "";
 	}
 
-	// Local checks before the configuration goes to S/4; DDIC, access sequence and key-field checks
-	// are backend-only (§21.1).
+	// Local checks before the configuration is saved.
 	function validateConfigs(aConfigs) {
 		var aMsg = [];
 		var mDefaults = {};
@@ -368,8 +609,8 @@ sap.ui.define([
 		return String(_iRowSeq);
 	}
 
-	function _fieldsOf(sComb) {
-		return (COMBINATIONS[sComb] || {}).fields || [];
+	function _recordPath(sId) {
+		return RECORD_SET + "(" + capService.literal(sId) + ")";
 	}
 
 	function _setStatus(oRow, sStatus, sMessage) {
@@ -378,9 +619,18 @@ sap.ui.define([
 		oRow.message = sMessage || "";
 	}
 
+	function _statusFromBackend(s) {
+		var sUpper = String(s || "").toUpperCase();
+		return sUpper === RECORD_STATUS.POSTED ? STATUS.POSTED : sUpper === RECORD_STATUS.FAILED ? STATUS.FAILED : STATUS.DRAFT;
+	}
+
 	function _rowFromBackend(r) {
+		var oType = _mTypes[r[FIELD.conditionType]] || {};
+		var bPercent = oType.kind === "percent";
+		var bPrice = oType.kind === "price";
 		var oRow = {
-			rowId: r[FIELD.rowId] || _nextRowId(),
+			rowId: r[FIELD.rowId],
+			persisted: true,
 			campaignId: r[FIELD.campaignId],
 			conditionType: r[FIELD.conditionType],
 			combination: r[FIELD.combination],
@@ -390,52 +640,119 @@ sap.ui.define([
 			article: r[FIELD.article] || "",
 			hierarchy: r[FIELD.hierarchy] || "",
 			brand: r[FIELD.brand] || "",
-			rate: r[FIELD.rate] !== undefined && r[FIELD.rate] !== null ? String(r[FIELD.rate]) : "",
-			rateUnit: r[FIELD.rateUnit] === "PERCENT" ? PERCENT : (r[FIELD.rateUnit] || ""),
-			pricingUnit: r[FIELD.pricingUnit] ? String(r[FIELD.pricingUnit]) : "",
-			uom: r[FIELD.uom] || "",
+			rate: _numText(r[FIELD.rate]),
+			rateUnit: bPercent ? PERCENT : (r[FIELD.rateUnit] || ""),
+			pricingUnit: bPrice ? _numText(r[FIELD.pricingUnit]) : "",
+			uom: bPrice ? (r[FIELD.uom] || "") : "",
 			validFrom: _parseDate(r[FIELD.validFrom]),
 			validTo: _parseDate(r[FIELD.validTo]),
 			tableNo: r[FIELD.tableNo] || "",
 			recordNo: r[FIELD.recordNo] || "",
 			createdBy: r[FIELD.createdBy] || "",
-			createdOn: _parseDate(r[FIELD.createdOn])
+			createdOn: _parseDate(r[FIELD.createdOn]),
+			changedBy: r[FIELD.changedBy] || "",
+			changedOn: _parseDate(r[FIELD.changedOn])
 		};
-		_setStatus(oRow, STATUS.SAVED);
+		_setStatus(oRow, _statusFromBackend(r[FIELD.status]), r[FIELD.message] || "");
+		// API §5.5: only records stored with STATUS DRAFT can be deleted.
+		oRow.deletable = String(r[FIELD.status] || RECORD_STATUS.DRAFT).toUpperCase() === RECORD_STATUS.DRAFT;
 		return oRow;
 	}
 
-	// §9 item payload. Amounts go as decimal strings (no float rounding); only the key fields of the
-	// selected combination are sent.
-	function _payload(oRow) {
-		var aFields = _fieldsOf(oRow.combination);
-		var bPercent = CONDITION_TYPES[oRow.conditionType].kind === "percent";
+	// API §5.2 body; only the key fields of the selected combination are filled.
+	function _recordPayload(oRow, sUser) {
+		var aFields = fieldsOf(oRow.combination);
+		var sKind = (_mTypes[oRow.conditionType] || {}).kind;
 		var o = {};
 		o[FIELD.rowId] = oRow.rowId;
 		o[FIELD.campaignId] = oRow.campaignId;
 		o[FIELD.conditionType] = oRow.conditionType;
 		o[FIELD.combination] = oRow.combination;
-		o[FIELD.tableNo] = oRow.tableNo;
 		o[FIELD.salesOrg] = oRow.salesOrg;
 		o[FIELD.distChannel] = oRow.distChannel;
-		if (aFields.indexOf("customer") !== -1) {
-			o[FIELD.customer] = oRow.customer;
+		o[FIELD.customer] = aFields.indexOf("customer") !== -1 ? oRow.customer : null;
+		o[FIELD.article] = aFields.indexOf("article") !== -1 ? oRow.article : null;
+		o[FIELD.brand] = aFields.indexOf("brand") !== -1 ? oRow.brand : null;
+		o[FIELD.hierarchy] = aFields.indexOf("brand") !== -1 ? oRow.hierarchy : null;
+		o[FIELD.validFrom] = _toIsoDate(oRow.validFrom);
+		o[FIELD.validTo] = _toIsoDate(oRow.validTo);
+		o[FIELD.rate] = _num(oRow.rate);
+		o[FIELD.rateUnit] = sKind === "percent" ? null : oRow.rateUnit;
+		o[FIELD.pricingUnit] = sKind === "price" ? _num(oRow.pricingUnit) : null;
+		o[FIELD.uom] = sKind === "price" ? oRow.uom : null;
+		o[FIELD.status] = RECORD_STATUS.DRAFT;
+		o[FIELD.recordNo] = null;
+		o[FIELD.tableNo] = oRow.tableNo || null;
+		o[FIELD.message] = null;
+		if (sUser) {
+			o[FIELD.createdBy] = sUser;
 		}
-		if (aFields.indexOf("article") !== -1) {
-			o[FIELD.article] = oRow.article;
+		return o;
+	}
+
+	// Edm.DateTime of the S/4 API: UTC midnight of the calendar date, "/Date(ms)/".
+	function _toS4Date(d) {
+		return d ? "/Date(" + Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) + ")/" : null;
+	}
+
+	function _s4Property(oKey) {
+		var sS4 = String(oKey.s4Field || "").trim();
+		if (sS4 && _aValidityProps.indexOf(sS4) !== -1) {
+			return sS4;
 		}
-		if (aFields.indexOf("brand") !== -1) {
-			o[FIELD.hierarchy] = oRow.hierarchy;
-			o[FIELD.brand] = oRow.brand;
+		return S4_KEY_PROPERTY[sS4.toUpperCase()] || S4_KEY_PROPERTY[oKey.code] || "";
+	}
+
+	// to_SlsPrcgCndnRecdValidity key properties of the record's combination. Keys without an S/4
+	// property (e.g. HIERARCHY when the brand node carries it) are skipped if not required; a
+	// required key without one blocks the post.
+	function _s4Keys(oRow) {
+		var oComb = _mCombs[oRow.combination] || { keys: [] };
+		var oKeys = {};
+		var aMissing = [];
+		oComb.keys.forEach(function (k) {
+			var sProp = _s4Property(k);
+			var sValue = oRow[KEY_VALUE[k.code]] || k.defaultValue || "";
+			if (!sProp) {
+				if (k.required && k.code !== "HIERARCHY") {
+					aMissing.push(k.field);
+				}
+				return;
+			}
+			if (sValue) {
+				oKeys[sProp] = sValue;
+			}
+		});
+		if (aMissing.length) {
+			throw _throw(_err("No S/4 field is mapped for " + aMissing.join(", ") + " of " + oRow.combination +
+				". Maintain S4_FIELD of the business key with the A_SlsPrcgCndnRecdValidity property name."));
 		}
-		o[FIELD.rate] = String(oRow.rate).trim();
-		o[FIELD.rateUnit] = bPercent ? "PERCENT" : oRow.rateUnit;
-		if (CONDITION_TYPES[oRow.conditionType].kind === "price") {
-			o[FIELD.pricingUnit] = String(oRow.pricingUnit).trim();
-			o[FIELD.uom] = oRow.uom;
+		return oKeys;
+	}
+
+	// A_SlsPrcgConditionRecord deep insert: header (table, application, type, rate) + one validity
+	// entry with dates and the combination's key fields.
+	function _s4Payload(oRow) {
+		var sKind = (_mTypes[oRow.conditionType] || {}).kind;
+		var oValidity = Object.assign({
+			ConditionValidityStartDate: _toS4Date(oRow.validFrom),
+			ConditionValidityEndDate: _toS4Date(oRow.validTo)
+		}, _s4Keys(oRow));
+		var o = {
+			ConditionTable: oRow.tableNo,
+			ConditionApplication: S4_APPLICATION,
+			ConditionType: oRow.conditionType,
+			ConditionRateValue: String(oRow.rate).trim(),
+			ConditionRateValueUnit: sKind === "percent" ? PERCENT : oRow.rateUnit
+		};
+		if (sKind !== "percent") {
+			o.ConditionCurrency = oRow.rateUnit;
 		}
-		o[FIELD.validFrom] = _toYmd(oRow.validFrom);
-		o[FIELD.validTo] = _toYmd(oRow.validTo);
+		if (sKind === "price") {
+			o.ConditionQuantity = String(oRow.pricingUnit).trim();
+			o.ConditionQuantityUnit = oRow.uom;
+		}
+		o.to_SlsPrcgCndnRecdValidity = [oValidity];
 		return o;
 	}
 
@@ -445,7 +762,7 @@ sap.ui.define([
 			a.campaignId !== b.campaignId || a.salesOrg !== b.salesOrg || a.distChannel !== b.distChannel) {
 			return false;
 		}
-		return _fieldsOf(a.combination).every(function (f) { return a[f] === b[f]; });
+		return fieldsOf(a.combination).every(function (f) { return a[f] === b[f]; });
 	}
 
 	function _overlaps(a, b) {
@@ -453,12 +770,11 @@ sap.ui.define([
 			a.validFrom <= b.validTo && b.validFrom <= a.validTo;
 	}
 
-	// §12 row validation. aOthers: the campaign's other rows, for the overlap check (§13: rejected
-	// here; controlled delimitation of saved records is a separate action).
+	// §12 row validation. aOthers: the campaign's other rows, for the overlap check (§13: rejected here).
 	function validateRow(oRow, aOthers) {
 		var aMsg = [];
-		var oType = CONDITION_TYPES[oRow.conditionType];
-		var aFields = _fieldsOf(oRow.combination);
+		var oType = _mTypes[oRow.conditionType];
+		var aFields = fieldsOf(oRow.combination);
 		if (!oRow.campaignId) {
 			aMsg.push(_err("Campaign ID is mandatory.", "campaignId"));
 		}
@@ -466,19 +782,23 @@ sap.ui.define([
 			aMsg.push(_err("Select a condition type.", "conditionType"));
 			return aMsg;
 		}
-		if (oType.combinations.indexOf(oRow.combination) === -1) {
+		var oCfg = getConfig(oRow.conditionType, oRow.combination);
+		if (!oCfg) {
 			aMsg.push(_err("Select a key combination allowed for " + oRow.conditionType + ".", "combination"));
 			return aMsg;
 		}
-		var oCfg = getConfig(oRow.conditionType, oRow.combination);
-		if (!oCfg || !oCfg.active) {
+		if (!oCfg.active || (_mCombs[oRow.combination] || {}).active === false) {
 			aMsg.push(_err(oRow.conditionType + " " + oRow.combination + " is not an active key combination.", "combination"));
 		}
 		if (!/^[A-Z0-9]{4}$/.test(oRow.salesOrg || "")) {
 			aMsg.push(_err("Sales organization is mandatory (4 characters).", "salesOrg"));
 		}
-		if (!/^[A-Z0-9]{2}$/.test(oRow.distChannel || "")) {
-			aMsg.push(_err("Distribution channel is mandatory (2 characters).", "distChannel"));
+		var sDistChannel = distChannelFor(oRow.combination);
+		if (!sDistChannel) {
+			aMsg.push(_err("No distribution channel is maintained for " + oRow.combination +
+				" (DEFAULT_VALUE of business key DIST_CHANNEL).", "distChannel"));
+		} else if (oRow.distChannel !== sDistChannel) {
+			aMsg.push(_err("Distribution channel must be " + sDistChannel + ".", "distChannel"));
 		}
 		if (aFields.indexOf("customer") !== -1 && !oRow.customer) {
 			aMsg.push(_err("Customer is mandatory for " + oRow.combination + ".", "customer"));
@@ -490,8 +810,12 @@ sap.ui.define([
 			if (!oRow.brand) {
 				aMsg.push(_err("Brand is mandatory for " + oRow.combination + ".", "brand"));
 			}
-			if (oRow.hierarchy !== DEFAULT_HIERARCHY) {
-				aMsg.push(_err("Hierarchy must be " + DEFAULT_HIERARCHY + " for brand combinations.", "hierarchy"));
+			var sHierarchy = hierarchyFor(oRow.combination);
+			if (!sHierarchy) {
+				aMsg.push(_err("No hierarchy is maintained for " + oRow.combination +
+					" (DEFAULT_VALUE of business key HIERARCHY).", "hierarchy"));
+			} else if (oRow.hierarchy !== sHierarchy) {
+				aMsg.push(_err("Hierarchy must be " + sHierarchy + ".", "hierarchy"));
 			}
 		}
 		if (!oRow.validFrom) {
@@ -529,7 +853,7 @@ sap.ui.define([
 			});
 			if (oClash) {
 				aMsg.push(_err("Validity overlaps " + (oClash.recordNo ? "condition record " + oClash.recordNo :
-					"draft row " + oClash.rowId) + " with the same condition key.", "validFrom"));
+					"draft record") + " with the same condition key.", "validFrom"));
 			}
 		}
 		return aMsg;
@@ -545,16 +869,15 @@ sap.ui.define([
 		o.pricingUnit = String(o.pricingUnit || "").trim();
 		o.validFrom = _day(o.validFrom);
 		o.validTo = _day(o.validTo);
-		var aFields = _fieldsOf(o.combination);
+		var aFields = fieldsOf(o.combination);
+		o.distChannel = distChannelFor(o.combination);
+		o.hierarchy = hierarchyFor(o.combination);
 		["customer", "article", "brand"].forEach(function (k) {
 			if (aFields.indexOf(k) === -1) {
 				o[k] = "";
 			}
 		});
-		if (aFields.indexOf("brand") === -1) {
-			o.hierarchy = "";
-		}
-		var oType = CONDITION_TYPES[o.conditionType];
+		var oType = _mTypes[o.conditionType];
 		if (oType && oType.kind === "percent") {
 			o.rateUnit = PERCENT;
 		}
@@ -579,9 +902,10 @@ sap.ui.define([
 		return null;
 	}
 
+	// Draft, failed and locally invalid rows are re-validated; posted ones are final.
 	function _validateOpen(sCampaignId) {
 		var aAll = conditionsOf(sCampaignId);
-		var aOpen = aAll.filter(function (o) { return o.status !== STATUS.SAVED; });
+		var aOpen = aAll.filter(function (o) { return o.status !== STATUS.POSTED; });
 		aOpen.forEach(function (oRow) {
 			var aMsg = validateRow(oRow, aAll);
 			if (aMsg.length) {
@@ -593,8 +917,61 @@ sap.ui.define([
 		return aOpen;
 	}
 
+	// S/4 post of one record; resolves with the KNUMH.
+	function _postToS4(oRow) {
+		var oPayload;
+		try {
+			oPayload = _s4Payload(oRow);
+		} catch (e) {
+			return Promise.reject(e);
+		}
+		return _post(S4_CONDITION_SET, oPayload).then(function (oData) {
+			if (!oData.ConditionRecord) {
+				throw _throw(_err("No condition record number was returned."));
+			}
+			return oData.ConditionRecord;
+		});
+	}
+
+	// Stores the S/4 result on the CAP record (API §5.3 / §5.4) and on the row. A posted record whose
+	// status cannot be stored stays Posted here (S/4 has it) but shows why.
+	function _storeResult(oRow, bPosted, sRecordNo, sMessage) {
+		// §5.3 { STATUS: POSTED, RECORD_NUMBER, ERROR_MESSAGE: null } / §5.4 { STATUS: FAILED, ERROR_MESSAGE }
+		var oPatch = {};
+		oPatch[FIELD.status] = bPosted ? RECORD_STATUS.POSTED : RECORD_STATUS.FAILED;
+		if (bPosted) {
+			oPatch[FIELD.recordNo] = sRecordNo;
+		}
+		oPatch[FIELD.message] = bPosted ? null : sMessage;
+		var pPatch = oRow.persisted ? capService.update(_recordPath(oRow.rowId), oPatch) : Promise.resolve(null);
+		return pPatch.then(function (oData) {
+			oRow.deletable = false;
+			oRow.recordNo = bPosted ? sRecordNo : "";
+			_setStatus(oRow, bPosted ? STATUS.POSTED : STATUS.FAILED, bPosted ? "" : sMessage);
+			if (oData) {
+				oRow.changedBy = oData[FIELD.changedBy] || oRow.changedBy;
+				oRow.changedOn = _parseDate(oData[FIELD.changedOn]) || oRow.changedOn;
+			}
+		}, function (oError) {
+			// the stored record is still DRAFT
+			oRow.deletable = !bPosted;
+			oRow.recordNo = bPosted ? sRecordNo : "";
+			_setStatus(oRow, bPosted ? STATUS.POSTED : STATUS.FAILED, bPosted ?
+				"Posted to S/4 as " + sRecordNo + ", but the status could not be stored: " + oError.message :
+				sMessage + " (status not stored: " + oError.message + ")");
+		});
+	}
+
 	function _refresh() {
 		_oModel.refresh(true);
+	}
+
+	function _newModel() {
+		return new JSONModel({ conditions: [], configs: [], brands: [], available: {}, serviceError: "", keysError: "" });
+	}
+
+	function _publishAvailability() {
+		_oModel.setProperty("/available", Object.assign({}, _mAvailable));
 	}
 
 	// ---------------------------------------------------------------- public API
@@ -603,20 +980,18 @@ sap.ui.define([
 		STATUS: STATUS,
 		STATUS_STATE: STATUS_STATE,
 		VALIDATION: VALIDATION,
-		COMBINATIONS: COMBINATIONS,
-		CONDITION_TYPES: CONDITION_TYPES,
-		DEFAULT_DIST_CHANNEL: DEFAULT_DIST_CHANNEL,
-		DEFAULT_HIERARCHY: DEFAULT_HIERARCHY,
 		PERCENT: PERCENT,
 
-		// Detects the backend entity sets and loads the Axxx configuration once.
+		// Loads condition types and the configuration matrix from CAP once and checks whether S/4
+		// posting is available. Resolves also when CAP cannot be read (empty catalogue, /serviceError set).
 		init: function (oComponent) {
 			_oComponent = oComponent;
+			capService.init(oComponent);
 			if (!_oModel) {
-				_oModel = new JSONModel({ conditions: [], configs: _defaultConfigs(), brands: [], available: {} });
+				_oModel = _newModel();
 			}
 			if (!_pInit) {
-				_pInit = _detectServices().then(_loadConfigs).catch(function (oError) {
+				_pInit = Promise.all([_detectPosting(), _loadCatalog()]).then(_publishAvailability).catch(function (oError) {
 					_pInit = null;
 					throw oError;
 				});
@@ -628,10 +1003,16 @@ sap.ui.define([
 			return _oModel;
 		},
 
+		// "config" / "records": CAP service readable; "posting": S/4 A_SlsPrcgConditionRecord reachable.
 		isAvailable: function (sService) {
 			return !!_mAvailable[sService];
 		},
 
+		typeInfo: typeInfo,
+		combinationInfo: combinationInfo,
+		fieldsOf: fieldsOf,
+		distChannelFor: distChannelFor,
+		hierarchyFor: hierarchyFor,
 		combinationsFor: combinationsFor,
 		defaultCombination: defaultCombination,
 		getConfig: getConfig,
@@ -640,23 +1021,30 @@ sap.ui.define([
 		validateConfigs: validateConfigs,
 		conditionsOf: conditionsOf,
 
+		// Condition type codes in display order.
+		conditionTypes: function () {
+			return _aTypeOrder.slice();
+		},
+
 		currencyFor: function (sCountry) {
 			return COUNTRY_CURRENCY[sCountry] || "";
 		},
 
-		// A new draft with the §2 / §17 defaults: Campaign ID, DC 10, Hierarchy L2, currency from country.
+		// A new draft with the §2 / §17 defaults: Campaign ID, DC and hierarchy from the combination's
+		// business keys, currency from country.
 		newDraft: function (sCampaignId, sCountry, sType, sComb) {
-			var sConditionType = CONDITION_TYPES[sType] ? sType : "ZPWP";
-			var bPercent = CONDITION_TYPES[sConditionType].kind === "percent";
+			var sConditionType = _mTypes[sType] ? sType : (_mTypes.ZPWP ? "ZPWP" : _aTypeOrder[0]);
+			var bPercent = (_mTypes[sConditionType] || {}).kind === "percent";
+			var sCombination = sComb || defaultCombination(sConditionType);
 			return {
 				campaignId: sCampaignId,
 				conditionType: sConditionType,
-				combination: sComb || defaultCombination(sConditionType),
+				combination: sCombination,
 				salesOrg: "",
-				distChannel: DEFAULT_DIST_CHANNEL,
+				distChannel: distChannelFor(sCombination),
 				customer: "",
 				article: "",
-				hierarchy: DEFAULT_HIERARCHY,
+				hierarchy: hierarchyFor(sCombination),
 				brand: "",
 				rate: "",
 				rateUnit: bPercent ? PERCENT : (COUNTRY_CURRENCY[sCountry] || ""),
@@ -667,44 +1055,65 @@ sap.ui.define([
 			};
 		},
 
-		// Records already linked to the campaign in S/4 replace the campaign's saved rows; local
-		// drafts and failed rows stay so they can be retried.
+		// API §5.1: the campaign's records replace its rows; session-only rows stay when CAP is down.
 		loadConditions: function (sCampaignId) {
-			if (!_mAvailable.conditions) {
+			if (!_mAvailable.records) {
 				return Promise.resolve(conditionsOf(sCampaignId));
 			}
-			return _read(CONDITION_SET, {
-				filters: [new Filter(FIELD.campaignId, FilterOperator.EQ, sCampaignId)]
+			return capService.list(RECORD_SET, {
+				$filter: FIELD.campaignId + " eq " + capService.literal(sCampaignId),
+				$expand: "CONDITION_TYPE,KEY_COMBINATION"
 			}).then(function (aData) {
-				var aSaved = aData.filter(function (r) { return r[FIELD.campaignId] === sCampaignId; }).map(_rowFromBackend);
-				var aKeep = _rows().filter(function (o) {
-					return o.campaignId !== sCampaignId || o.status !== STATUS.SAVED;
-				});
-				_setRows(aKeep.concat(aSaved));
+				var aLoaded = aData.filter(function (r) { return r[FIELD.campaignId] === sCampaignId; }).map(_rowFromBackend);
+				var aKeep = _rows().filter(function (o) { return o.campaignId !== sCampaignId || !o.persisted; });
+				_setRows(aKeep.concat(aLoaded));
 				return conditionsOf(sCampaignId);
 			});
 		},
 
-		// Adds a validated draft row; rejects with field messages otherwise.
+		// Validates the draft and stores it as a DRAFT record (API §5.2); rejects with field messages.
+		// The configured condition table number is kept as snapshot.
 		addDraft: function (oDraft) {
 			var oRow = _normalize(oDraft);
 			var aMsg = validateRow(oRow, conditionsOf(oRow.campaignId));
 			if (aMsg.length) {
 				return Promise.reject(_throw(aMsg));
 			}
-			oRow.rowId = _nextRowId();
-			oRow.tableNo = "";
+			var oCfg = getConfig(oRow.conditionType, oRow.combination);
+			oRow.tableNo = (oCfg && oCfg.tableNo) || "";
 			oRow.recordNo = "";
-			_setStatus(oRow, STATUS.DRAFT);
-			_setRows(_rows().concat([oRow]));
-			return Promise.resolve(oRow);
+			if (!_mAvailable.records) {
+				oRow.rowId = _nextRowId();
+				oRow.persisted = false;
+				oRow.deletable = true;
+				_setStatus(oRow, STATUS.DRAFT);
+				_setRows(_rows().concat([oRow]));
+				return Promise.resolve(oRow);
+			}
+			oRow.rowId = capService.uuid();
+			return capService.userName().then(function (sUser) {
+				var oPayload = _recordPayload(oRow, sUser);
+				return capService.create(RECORD_SET, oPayload).then(function (oData) {
+					var oSaved = _rowFromBackend(Object.assign({}, oPayload, oData || {}));
+					_setRows(_rows().concat([oSaved]));
+					return oSaved;
+				});
+			});
 		},
 
-		// Only rows not yet saved in S/4 can be removed; saved records are delimited instead.
+		// API §5.5: only DRAFT records can be deleted (CAP only); posted and failed records stay.
 		removeDraft: function (sRowId) {
-			_setRows(_rows().filter(function (o) {
-				return o.rowId !== sRowId || o.status === STATUS.SAVED;
-			}));
+			var oRow = _rows().find(function (o) { return o.rowId === sRowId; });
+			if (!oRow) {
+				return Promise.resolve();
+			}
+			if (!oRow.deletable) {
+				return Promise.reject(_throw(_err("Only draft records can be deleted.")));
+			}
+			var pDelete = oRow.persisted ? capService.remove(_recordPath(sRowId)) : Promise.resolve();
+			return pDelete.then(function () {
+				_setRows(_rows().filter(function (o) { return o.rowId !== sRowId; }));
+			});
 		},
 
 		// Re-validates every open row of the campaign; returns counts.
@@ -717,9 +1126,9 @@ sap.ui.define([
 			};
 		},
 
-		// §4.2 / §13 save: validates open rows, then posts each valid row on its own so one failure
-		// does not roll back the others. Successful rows keep their KNUMH and are never posted again;
-		// failed rows can be retried. A success without a record number counts as failed.
+		// §4.2 / §13 save: validates open rows, posts each valid row to S/4 on its own so one failure
+		// does not roll back the others, then stores the result on the record: POSTED + RECORD_NUMBER
+		// or FAILED + ERROR_MESSAGE. Posted rows are never posted again; failed rows can be retried.
 		save: function (sCampaignId) {
 			var aValid = _validateOpen(sCampaignId).filter(function (o) { return o.status !== STATUS.ERROR; });
 			if (!aValid.length) {
@@ -728,10 +1137,11 @@ sap.ui.define([
 					return o.status === STATUS.ERROR;
 				}).length });
 			}
-			if (!_mAvailable.conditions) {
+			if (!_mAvailable.posting) {
 				_refresh();
-				return Promise.reject(_throw(_err("The pricing condition service (" + CONDITION_SET.slice(1) +
-					") is not available in ZSDGW_CE_APP_SRV yet. Nothing was posted to S/4; the draft rows are kept in this session.")));
+				return Promise.reject(_throw(_err("The S/4 pricing API (" + S4_MODEL + S4_CONDITION_SET +
+					") cannot be reached. Nothing was posted to S/4; " + (_mAvailable.records ?
+					"the records stay stored with status Draft." : "the draft rows are kept in this session."))));
 			}
 			var aPost = [];
 			aValid.forEach(function (oRow) {
@@ -744,21 +1154,14 @@ sap.ui.define([
 				aPost.push(oRow);
 			});
 			return Promise.allSettled(aPost.map(function (oRow) {
-				return _post(CONDITION_SET, _payload(oRow)).then(function (oData) {
-					if (!oData[FIELD.recordNo]) {
-						throw _throw(_err("No condition record number was returned."));
-					}
-					oRow.recordNo = oData[FIELD.recordNo];
-					oRow.createdBy = oData[FIELD.createdBy] || "";
-					oRow.createdOn = _parseDate(oData[FIELD.createdOn]) || _day(new Date());
-					_setStatus(oRow, STATUS.SAVED);
+				return _postToS4(oRow).then(function (sRecordNo) {
+					return _storeResult(oRow, true, sRecordNo, "");
+				}, function (oError) {
+					return _storeResult(oRow, false, "", oError.message).then(function () {
+						throw oError;
+					});
 				});
 			})).then(function (aResults) {
-				aResults.forEach(function (r, i) {
-					if (r.status === "rejected") {
-						_setStatus(aPost[i], STATUS.FAILED, r.reason.message);
-					}
-				});
 				_refresh();
 				var aAll = conditionsOf(sCampaignId);
 				return {
@@ -766,33 +1169,6 @@ sap.ui.define([
 					failed: aResults.filter(function (r) { return r.status === "rejected"; }).length,
 					errors: aAll.filter(function (o) { return o.status === STATUS.ERROR; }).length
 				};
-			});
-		},
-
-		// §4.3 change/delimit: only the Valid To of a saved record changes (never a full overwrite).
-		delimit: function (sRowId, oNewTo) {
-			var oRow = _rows().find(function (o) { return o.rowId === sRowId; });
-			var oTo = _day(oNewTo);
-			if (!oRow || oRow.status !== STATUS.SAVED || !oRow.recordNo) {
-				return Promise.reject(_throw(_err("Only condition records saved in S/4 can be delimited.")));
-			}
-			if (!oTo || (oRow.validFrom && oTo < oRow.validFrom)) {
-				return Promise.reject(_throw(_err("The new Valid To cannot be before Valid From.", "validTo")));
-			}
-			if (oRow.validTo && oTo > oRow.validTo) {
-				return Promise.reject(_throw(_err("Delimiting can only shorten the validity.", "validTo")));
-			}
-			if (!_mAvailable.conditions) {
-				return Promise.reject(_throw(_err("The pricing condition service is not available yet; the record was not changed.")));
-			}
-			var oKey = {};
-			oKey[FIELD.recordNo] = oRow.recordNo;
-			var oPayload = {};
-			oPayload[FIELD.validTo] = _toYmd(oTo);
-			return _merge(_main().createKey(CONDITION_SET, oKey), oPayload).then(function () {
-				oRow.validTo = oTo;
-				_refresh();
-				return oRow;
 			});
 		},
 
@@ -817,82 +1193,87 @@ sap.ui.define([
 			return _pBrands;
 		},
 
-		// Condition types for the dropdown: [{ key, text }] with the backend description; resolves
-		// with the FDD list when ConditionsSet cannot be read or returns none of the supported types.
+		// Condition types for the dropdown: [{ key, text }], from CAP ConditionTypes only. Rejects with
+		// the service error when CAP cannot be read.
 		loadConditionTypes: function () {
-			if (!_pTypes) {
-				_pTypes = _read(CONDITION_TYPE_SET).then(function (aRows) {
-					var mText = {};
-					aRows.forEach(function (r) {
-						var sKey = (r.CondType || "").trim().toUpperCase();
-						if (CONDITION_TYPES[sKey] && !mText[sKey]) {
-							mText[sKey] = r.CondTypeDesc || "";
-						}
-					});
-					return mText;
-				}).catch(function () {
-					return {};
-				}).then(function (mText) {
-					var aKeys = Object.keys(CONDITION_TYPES).filter(function (k) { return k in mText; });
-					_oModel.setProperty("/conditionTypesSource", aKeys.length ? "backend" : "fallback");
-					_oModel.setProperty("/conditionTypes", (aKeys.length ? aKeys : Object.keys(CONDITION_TYPES)).map(function (k) {
-						return { key: k, text: mText[k] || "" };
-					}));
-					return _oModel.getProperty("/conditionTypes");
-				});
+			if (!_mAvailable.config) {
+				return Promise.reject(new Error(_oModel.getProperty("/serviceError") ||
+					"The campaign pricing service (" + TYPE_SET + ") cannot be reached."));
 			}
-			return _pTypes;
+			return Promise.resolve(_aTypeOrder.map(function (k) {
+				return { key: k, text: _mTypes[k].description };
+			}));
 		},
 
-		// Backend description of a condition type ("" when not loaded or not returned).
+		// Backend description of a condition type ("" when not known).
 		conditionTypeText: function (sType) {
-			var oType = ((_oModel && _oModel.getProperty("/conditionTypes")) || []).find(function (t) { return t.key === sType; });
-			return oType ? oType.text : "";
+			return (_mTypes[sType] || {}).description || "";
 		},
 
-		// Sends changed mappings to S/4, which validates DDIC / access sequence / key fields and
-		// returns the validation status (§20 Save + Validate; activation is decided by the backend).
+		// Backend description of a key combination ("" when not known).
+		combinationText: function (sComb) {
+			return (_mCombs[sComb] || {}).description || "";
+		},
+
+		// API §3.1 for one condition type (Axxx Config table when a type is selected). Resolves with
+		// the type's mappings.
+		loadConfigsFor: function (sType) {
+			if (!_mAvailable.config || !sType) {
+				return Promise.resolve(_configsOf(sType));
+			}
+			return _loadConfigsFor(sType);
+		},
+
+		// API §3.3: PATCH each changed mapping (table number, default, active). Entries losing their
+		// default flag go first, so the service never sees two defaults for one condition type.
 		saveConfigs: function () {
 			var aMsg = validateConfigs().filter(function (m) { return m.type === "Error"; });
 			if (aMsg.length) {
 				return Promise.reject(_throw(aMsg));
 			}
-			var aDirty = _configs().filter(function (c) { return c.dirty; });
+			var aDirty = _configs().filter(function (c) { return c.dirty; }).sort(function (a, b) {
+				return Number(a.isDefault) - Number(b.isDefault);
+			});
 			if (!aDirty.length) {
 				return Promise.resolve({ saved: 0, failed: 0 });
 			}
 			if (!_mAvailable.config) {
-				return Promise.reject(_throw(_err("The pricing configuration service (" + CONFIG_SET.slice(1) +
-					") is not available in ZSDGW_CE_APP_SRV yet. The changes were not saved to S/4 and only apply in this session.")));
+				return Promise.reject(_throw(_err("The campaign pricing configuration service (" + TYPE_COMB_SET +
+					") cannot be reached. The changes were not saved and only apply in this session.")));
 			}
-			return Promise.allSettled(aDirty.map(function (c) {
-				var o = {};
-				o[CONFIG_FIELD.conditionType] = c.conditionType;
-				o[CONFIG_FIELD.combination] = c.combination;
-				o[CONFIG_FIELD.tableNo] = c.tableNo;
-				o[CONFIG_FIELD.fieldSet] = c.fieldSet;
-				o[CONFIG_FIELD.active] = c.active;
-				o[CONFIG_FIELD.isDefault] = c.isDefault;
-				return _post(CONFIG_SET, o).then(function (oData) {
-					Object.assign(c, _configFromBackend(Object.assign({}, o, oData)));
+			var aFailed = [];
+			var iSaved = 0;
+			return aDirty.reduce(function (pPrev, c) {
+				return pPrev.then(function () {
+					var sPath = TYPE_COMB_SET + "(CONDITION_TYPE_ID=" + c.conditionTypeId + ",KEY_COMBINATION_ID=" + c.combinationId + ")";
+					return capService.update(sPath, {
+						CONDITION_TABLE_NUMBER: c.tableNo || null,
+						DEFAULT_FLAG: !!c.isDefault,
+						IS_ACTIVE: !!c.active
+					}).then(function (oData) {
+						if (oData) {
+							c.tableNo = oData.CONDITION_TABLE_NUMBER === "TBD" ? "" : (oData.CONDITION_TABLE_NUMBER || "");
+							c.isDefault = !!oData.DEFAULT_FLAG;
+							c.active = !!oData.IS_ACTIVE;
+						}
+						c.dirty = false;
+						c.validation = VALIDATION.SAVED;
+						iSaved += 1;
+					}, function (oError) {
+						c.validation = VALIDATION.FAILED;
+						aFailed.push(c.conditionType + " " + c.combination + ": " + oError.message);
+					});
 				});
-			})).then(function (aResults) {
+			}, Promise.resolve()).then(function () {
 				_refresh();
-				var aFailed = [];
-				aResults.forEach(function (r, i) {
-					if (r.status === "rejected") {
-						aDirty[i].validation = VALIDATION.INVALID;
-						aFailed.push(aDirty[i].conditionType + " " + aDirty[i].combination + ": " + r.reason.message);
-					}
-				});
-				return { saved: aResults.length - aFailed.length, failed: aFailed.length, messages: aFailed };
+				return { saved: iSaved, failed: aFailed.length, messages: aFailed };
 			});
 		},
 
-		// Marks a configuration entry as edited locally (validation status resets until S/4 checks it).
+		// Marks a configuration entry as edited locally.
 		markConfigChanged: function (oConfig) {
 			oConfig.dirty = true;
-			oConfig.validation = VALIDATION.NOT_VALIDATED;
+			oConfig.validation = _mAvailable.config ? VALIDATION.CHANGED : VALIDATION.LOCAL;
 		},
 
 		// Test hook: drop all session state.
@@ -900,14 +1281,19 @@ sap.ui.define([
 			_oModel = null;
 			_pInit = null;
 			_pBrands = null;
-			_pTypes = null;
 			_iRowSeq = 0;
-			_mAvailable = { conditions: false, config: false };
+			_mAvailable = { config: false, records: false, posting: false };
+			_aValidityProps = [];
+			_mTypes = {};
+			_mCombs = {};
+			_aTypeOrder = [];
 		},
 
-		// Test hook: a model without a backend (validation / draft logic only).
-		_initLocal: function () {
-			_oModel = new JSONModel({ conditions: [], configs: _defaultConfigs(), brands: [], available: {} });
+		// Test hook: a model without a backend, loaded with the given ConditionTypes and
+		// ConditionTypeKeyCombinations rows (same shape as the CAP response).
+		_initLocal: function (aTypes, aRows) {
+			_oModel = _newModel();
+			_applyCatalog(aTypes || [], aRows || []);
 		}
 	};
 });

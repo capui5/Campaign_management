@@ -1,0 +1,32 @@
+[
+  {
+    "CampaignId": "C-0020000019",
+    "CampaignIdDesc": "Dyson Trade-in Promo",
+    "BrandId": "DYS",
+    "ValidFrom": "20261101",
+    "ValidTo": "20261130",
+    "Loyprogid": "LOY01",
+    "Pointsconsu": 0.0,
+    "Camptype": "RETAIL",
+    "Country": "SG",
+    "CampaignCat": "PROMO",
+    "Crename": "VINAY",
+    "Credate": "20261101",
+    "DocDate": "20261101"
+  },
+  {
+    "CampaignId": "C-0020000018",
+    "CampaignIdDesc": "Year-end Fragrance Festival",
+    "BrandId": "",
+    "ValidFrom": "20261201",
+    "ValidTo": "20261231",
+    "Loyprogid": "",
+    "Pointsconsu": 0.0,
+    "Camptype": "RETAIL",
+    "Country": "MY",
+    "CampaignCat": "PROMO",
+    "Crename": "VINAY",
+    "Credate": "20261028",
+    "DocDate": "20261028"
+  }
+]

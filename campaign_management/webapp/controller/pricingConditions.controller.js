@@ -4,16 +4,11 @@ sap.ui.define([
     "sap/ui/model/Filter",
     "sap/m/MessageBox",
     "sap/m/MessageToast",
-    "sap/m/Dialog",
-    "sap/m/Button",
-    "sap/m/Label",
-    "sap/m/DatePicker",
-    "sap/m/VBox",
     "com/luxasia/campaignmanagement/util/campaignService",
     "com/luxasia/campaignmanagement/util/pricingService",
     "com/luxasia/campaignmanagement/util/pricingFormatter",
     "com/luxasia/campaignmanagement/util/backNavGuard"
-], function (Controller, JSONModel, Filter, MessageBox, MessageToast, Dialog, Button, Label, DatePicker, VBox,
+], function (Controller, JSONModel, Filter, MessageBox, MessageToast,
     campaignService, pricingService, pricingFormatter, backNavGuard) {
     "use strict";
 
@@ -96,13 +91,17 @@ sap.ui.define([
                 var oCampaign = aResults[0];
                 oModel.setProperty("/country", oCampaign.country);
                 oModel.setProperty("/campaigns", that._campaignList(oCampaign));
-                // Condition types from ConditionsSet (backend description, else the FDD name).
+                // Condition types from CAP ConditionTypes (code + DESCRIPTION) only.
                 var aTypes = aResults[2];
-                oModel.setProperty("/types", aTypes.map(function (t) {
-                    return { key: t.key, text: t.text || that._i18n("Pricing_Type_" + t.key) };
-                }));
+                oModel.setProperty("/types", aTypes);
                 var bKnown = aTypes.some(function (t) { return t.key === sType; });
-                that._resetDraft(bKnown ? sType : aTypes[0].key);
+                if (!aTypes.length) {
+                    // CAP answered but has no active condition types configured.
+                    MessageBox.warning(that._i18n("Pricing_No_Types"));
+                } else if (pricingService.getModel().getProperty("/keysError")) {
+                    MessageBox.warning(pricingService.getModel().getProperty("/keysError"));
+                }
+                that._resetDraft(bKnown ? sType : (aTypes[0] || {}).key || "");
             }).catch(function (oError) {
                 MessageBox.error(oError.message);
             }).finally(function () {
@@ -150,15 +149,14 @@ sap.ui.define([
         },
 
         // Empties the condition details of a draft; campaign, condition type and combination stay.
-        // Percentages keep % as their unit, which is not editable.
+        // Percentages keep % as their unit, which is not editable. The distribution channel is not
+        // entered: it is set from the combination in _applyCombination, like the hierarchy.
         _blankDetails: function (oDraft) {
-            var bPercent = pricingService.CONDITION_TYPES[oDraft.conditionType].kind === "percent";
+            var bPercent = (pricingService.typeInfo(oDraft.conditionType) || {}).kind === "percent";
             return Object.assign({}, oDraft, {
                 salesOrg: "",
-                distChannel: "",
                 customer: "",
                 article: "",
-                hierarchy: "",
                 brand: "",
                 rate: "",
                 rateUnit: bPercent ? pricingService.PERCENT : "",
@@ -171,10 +169,9 @@ sap.ui.define([
 
         // Combination list, labels and visible key fields follow the condition type.
         _applyType: function () {
-            var that = this;
             var oModel = this._model();
             var sType = oModel.getProperty("/draft/conditionType");
-            var sKind = pricingService.CONDITION_TYPES[sType].kind;
+            var sKind = (pricingService.typeInfo(sType) || {}).kind;
             var aCombs = pricingService.combinationsFor(sType);
             var sComb = oModel.getProperty("/draft/combination");
             if (aCombs.indexOf(sComb) === -1) {
@@ -185,7 +182,7 @@ sap.ui.define([
             oModel.setProperty("/rateLabel", this._i18n(sKind === "percent" ? "Pricing_Rate_Percent" :
                 sKind === "price" ? "Pricing_Rate_Price" : "Pricing_Rate_Amount"));
             oModel.setProperty("/combinations", aCombs.map(function (k) {
-                return { key: k, text: that._i18n("Pricing_Comb_" + k) };
+                return { key: k, text: pricingService.combinationText(k) };
             }));
             oModel.setProperty("/combinationIndex", aCombs.indexOf(sComb));
             this._applyCombination();
@@ -195,7 +192,10 @@ sap.ui.define([
             var oModel = this._model();
             var sType = oModel.getProperty("/draft/conditionType");
             var sComb = oModel.getProperty("/draft/combination");
-            var aFields = sComb ? pricingService.COMBINATIONS[sComb].fields : [];
+            var aFields = sComb ? pricingService.fieldsOf(sComb) : [];
+            // Always the backend defaults of the DIST_CHANNEL ("10") and HIERARCHY ("L2") business keys.
+            oModel.setProperty("/draft/distChannel", pricingService.distChannelFor(sComb));
+            oModel.setProperty("/draft/hierarchy", pricingService.hierarchyFor(sComb));
             oModel.setProperty("/fields", {
                 customer: aFields.indexOf("customer") !== -1,
                 article: aFields.indexOf("article") !== -1,
@@ -268,10 +268,12 @@ sap.ui.define([
             MessageBox.error(aMsg.map(function (m) { return m.text; }).join("\n"));
         },
 
-        // Adds the draft row to the records table; sales area, dates and condition type stay for the next row.
+        // Stores the draft as a DRAFT record (CampaignPricingRecords POST) and shows it in the records
+        // table; sales area, dates and condition type stay for the next row.
         onAddDraft: function () {
             var that = this;
             var oModel = this._model();
+            oModel.setProperty("/busy", true);
             pricingService.addDraft(oModel.getProperty("/draft")).then(function () {
                 that._filterRecords(oModel.getProperty("/campaignId"));
                 ["customer", "article", "brand", "rate"].forEach(function (k) {
@@ -281,6 +283,8 @@ sap.ui.define([
                 MessageToast.show(that._i18n("Pricing_Draft_Added"));
             }).catch(function (oError) {
                 that._showMessages(oError.messages || [{ text: oError.message }]);
+            }).finally(function () {
+                oModel.setProperty("/busy", false);
             });
         },
 
@@ -296,48 +300,27 @@ sap.ui.define([
             return oEvent.getSource().getBindingContext("PricingModel").getObject();
         },
 
+        // Draft / failed records are deleted from the campaign pricing store (CampaignPricingRecords DELETE).
         onRemoveRow: function (oEvent) {
+            var that = this;
+            var oModel = this._model();
             var oRow = this._rowFromEvent(oEvent);
             MessageBox.confirm(this._i18n("Pricing_Remove_Confirm"), {
                 onClose: function (sAction) {
-                    if (sAction === MessageBox.Action.OK) {
-                        pricingService.removeDraft(oRow.rowId);
+                    if (sAction !== MessageBox.Action.OK) {
+                        return;
                     }
+                    oModel.setProperty("/busy", true);
+                    pricingService.removeDraft(oRow.rowId).then(function () {
+                        that._filterRecords(oModel.getProperty("/campaignId"));
+                        MessageToast.show(that._i18n("Pricing_Removed"));
+                    }).catch(function (oError) {
+                        MessageBox.error(oError.message);
+                    }).finally(function () {
+                        oModel.setProperty("/busy", false);
+                    });
                 }
             });
-        },
-
-        // Change/delimit a saved record: only its Valid To can be shortened (§4.3).
-        onDelimit: function (oEvent) {
-            var that = this;
-            var oRow = this._rowFromEvent(oEvent);
-            var oPicker = new DatePicker({ dateValue: oRow.validTo, displayFormat: "dd-MM-yyyy", minDate: oRow.validFrom, maxDate: oRow.validTo });
-            var oDialog = new Dialog({
-                title: this._i18n("Pricing_Delimit_Title", [oRow.recordNo]),
-                content: new VBox({ items: [new Label({ text: this._i18n("Pricing_Valid_To"), labelFor: oPicker }), oPicker] }).addStyleClass("sapUiSmallMargin"),
-                beginButton: new Button({
-                    text: this._i18n("Pricing_Delimit"),
-                    type: "Emphasized",
-                    press: function () {
-                        oDialog.setBusy(true);
-                        pricingService.delimit(oRow.rowId, oPicker.getDateValue()).then(function () {
-                            oDialog.close();
-                            MessageToast.show(that._i18n("Pricing_Delimited", [oRow.recordNo]));
-                        }).catch(function (oError) {
-                            MessageBox.error(oError.message);
-                        }).finally(function () {
-                            oDialog.setBusy(false);
-                        });
-                    }
-                }),
-                endButton: new Button({
-                    text: this._i18n("Cancel"),
-                    press: function () { oDialog.close(); }
-                }),
-                afterClose: function () { oDialog.destroy(); }
-            });
-            this.getView().addDependent(oDialog);
-            oDialog.open();
         },
 
         // Per-row results: saved rows show the S/4 record number, failed rows their message (§13).

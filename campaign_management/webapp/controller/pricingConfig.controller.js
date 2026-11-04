@@ -9,36 +9,28 @@ sap.ui.define([
 ], function (Controller, JSONModel, Filter, File, MessageBox, pricingService, backNavGuard) {
     "use strict";
 
-    // Pricing Key Configuration (FDD Addendum v1.1 §18 - §20): the 20 approved condition-type /
-    // key-combination mappings with their Axxx condition table number, default and active flags and
-    // the S/4 validation status; the field mapping of the selected row below. IT/SD administrator
-    // function: S/4 checks the authorization and validates every mapping on save (§21.1).
+    // Pricing Key Configuration (FDD Addendum v1.1 §18 - §20): the condition-type / key-combination
+    // mappings of ConditionTypeKeyCombinations with their Axxx condition table number, default and
+    // active flags and save state; the business keys (BUSINESS_KEYS) of the selected row below.
+    // IT/SD administrator function: Save PATCHes each changed mapping (API §3.3).
     // Route: pricingConfig, ?campaignId=...&from=... when opened from the pricing screen (back returns
     // there, else to the list). Edits apply to the pricing screen at once (active combinations, table
     // number); they reach S/4 only through Save.
     return Controller.extend("com.luxasia.campaignmanagement.controller.pricingConfig", {
+        // Description from CAP ConditionTypes.
         formatType: function (sType) {
-            return sType ? this._i18n("Pricing_Type_" + sType) : "";
+            return sType ? pricingService.conditionTypeText(sType) : "";
         },
 
-        // Sales Org / Distribution Channel / Campaign ID / <combination key fields> (§19).
+        // Business keys of the combination in SEQUENCE order, e.g. Sales Organization / Distribution
+        // Channel / Campaign ID / Customer / Article / SKU (BUSINESS_KEYS, API §3.1).
         formatBusinessKey: function (sComb) {
-            var that = this;
-            if (!sComb) {
-                return "";
-            }
-            var aKeys = [this._i18n("Pricing_Sales_Org"), this._i18n("Pricing_Dist_Channel"), this._i18n("Camp_Id")];
-            pricingService.COMBINATIONS[sComb].fields.forEach(function (f) {
-                if (f === "brand") {
-                    aKeys.push(that._i18n("Pricing_Hierarchy"));
-                }
-                aKeys.push(that._i18n(f === "brand" ? "Pricing_Brand" : f === "customer" ? "Pricing_Customer" : "Pricing_Article"));
-            });
-            return aKeys.join(" / ");
+            var oComb = sComb ? pricingService.combinationInfo(sComb) : null;
+            return oComb ? oComb.keys.map(function (k) { return k.label; }).join(" / ") : "";
         },
 
         formatValidation: function (sStatus) {
-            return this._i18n("Config_Validation_" + (sStatus || pricingService.VALIDATION.NOT_VALIDATED));
+            return this._i18n("Config_Validation_" + (sStatus || pricingService.VALIDATION.LOCAL));
         },
 
         formatTableNoState: function (sTableNo) {
@@ -63,12 +55,12 @@ sap.ui.define([
             this._oQuery = (oEvent.getParameter("arguments") || {})["?query"] || {};
             var oModel = this._model();
             oModel.setProperty("/busy", true);
-            oModel.setProperty("/types", [{ key: "", text: this._i18n("Config_All_Types") }].concat(
-                Object.keys(pricingService.CONDITION_TYPES).map(function (k) {
-                    return { key: k, text: k + " — " + that._i18n("Pricing_Type_" + k) };
-                })));
             this._showFields(null);
             pricingService.init(this.getOwnerComponent()).then(function () {
+                oModel.setProperty("/types", [{ key: "", text: that._i18n("Config_All_Types") }].concat(
+                    pricingService.conditionTypes().map(function (k) {
+                        return { key: k, text: k + " — " + that.formatType(k) };
+                    })));
                 that.getView().setModel(pricingService.getModel(), "PricingModel");
                 that.onTypeFilter();
             }).catch(function (oError) {
@@ -83,12 +75,29 @@ sap.ui.define([
             this._model().setProperty("/shown", oEvent.getSource().getBinding("items").getLength());
         },
 
+        // All types: the full matrix (API §3.2, read on init). One type: its active mappings with
+        // business keys are read again (API §3.1) before the table is filtered.
         onTypeFilter: function () {
-            var sType = this._model().getProperty("/type");
-            var oBinding = this.byId("configTable").getBinding("items");
-            if (oBinding) {
-                oBinding.filter(sType ? [new Filter("conditionType", "EQ", sType)] : []);
+            var that = this;
+            var oModel = this._model();
+            var sType = oModel.getProperty("/type");
+            var fnApply = function () {
+                var oBinding = that.byId("configTable").getBinding("items");
+                if (oBinding) {
+                    oBinding.filter(sType ? [new Filter("conditionType", "EQ", sType)] : []);
+                }
+                that._showFields(null);
+            };
+            if (!sType) {
+                fnApply();
+                return;
             }
+            oModel.setProperty("/busy", true);
+            pricingService.loadConfigsFor(sType).catch(function (oError) {
+                MessageBox.error(oError.message);
+            }).then(fnApply).finally(function () {
+                oModel.setProperty("/busy", false);
+            });
         },
 
         _configFromEvent: function (oEvent) {
@@ -132,33 +141,28 @@ sap.ui.define([
             this._showFields(oItem ? oItem.getBindingContext("PricingModel").getObject() : null);
         },
 
-        // Logical field mapping (§18.2 FIELD_ID, UI_LABEL, REQUIRED, DEFAULT_RULE, VALUE_HELP); the
-        // DDIC field of the Axxx table is resolved and validated by S/4.
+        // Business keys of the combination (KEY_COMBINATION.BUSINESS_KEYS: FIELD_CODE, BUSINESS_KEY,
+        // S4_FIELD, SEQUENCE, REQUIRED, DEFAULT_VALUE).
         _showFields: function (oConfig) {
             var oModel = this._model();
-            if (!oConfig) {
+            var oComb = oConfig ? pricingService.combinationInfo(oConfig.combination) : null;
+            if (!oComb) {
                 oModel.setProperty("/fieldsTitle", this._i18n("Config_Fields_Title"));
                 oModel.setProperty("/fieldRows", []);
                 return;
             }
-            var aRows = [
-                { id: "SALES_ORG", label: this._i18n("Pricing_Sales_Org"), required: true, defaultRule: "NONE", valueHelp: "SALES_ORG" },
-                { id: "DIST_CHANNEL", label: this._i18n("Pricing_Dist_Channel"), required: true, defaultRule: "CHANNEL_10", valueHelp: "" },
-                { id: "CAMPAIGN", label: this._i18n("Camp_Id"), required: true, defaultRule: "CAMPAIGN", valueHelp: "CAMPAIGN" }
-            ];
-            var that = this;
-            pricingService.COMBINATIONS[oConfig.combination].fields.forEach(function (f) {
-                if (f === "brand") {
-                    aRows.push({ id: "HIERARCHY", label: that._i18n("Pricing_Hierarchy"), required: true, defaultRule: "HIERARCHY_L2", valueHelp: "" });
-                    aRows.push({ id: "BRAND", label: that._i18n("Pricing_Brand"), required: true, defaultRule: "NONE", valueHelp: "BRAND" });
-                } else if (f === "customer") {
-                    aRows.push({ id: "CUSTOMER", label: that._i18n("Pricing_Customer"), required: true, defaultRule: "NONE", valueHelp: "CUSTOMER" });
-                } else {
-                    aRows.push({ id: "ARTICLE", label: that._i18n("Pricing_Article"), required: true, defaultRule: "NONE", valueHelp: "ARTICLE" });
-                }
-            });
-            oModel.setProperty("/fieldsTitle", this._i18n("Config_Fields_Title_For", [oConfig.conditionType, oConfig.combination, oConfig.fieldSet]));
-            oModel.setProperty("/fieldRows", aRows);
+            oModel.setProperty("/fieldsTitle", this._i18n("Config_Fields_Title_For", [oConfig.conditionType, oConfig.combination,
+                oComb.description]));
+            oModel.setProperty("/fieldRows", oComb.keys.map(function (k) {
+                return {
+                    sequence: k.sequence,
+                    id: k.field,
+                    label: k.label,
+                    required: k.required,
+                    defaultValue: k.defaultValue || "—",
+                    s4Field: k.s4Field || "—"
+                };
+            }));
         },
 
         onSave: function () {
@@ -190,10 +194,11 @@ sap.ui.define([
                     CombinationId: c.combination,
                     ConditionTableNumber: c.tableNo || "TBD",
                     TableName: pricingService.tableName(c.tableNo),
-                    FieldSet: c.fieldSet,
+                    Description: c.fieldSet,
+                    BusinessKeys: (pricingService.combinationInfo(c.combination) || { keys: [] }).keys.map(function (k) { return k.field; }),
                     Active: c.active,
                     Default: c.isDefault,
-                    ValidationStatus: c.validation
+                    SaveStatus: c.validation
                 };
             });
             File.save(JSON.stringify(aConfigs, null, 2), "campaign_condition_mapping", "json", "application/json");

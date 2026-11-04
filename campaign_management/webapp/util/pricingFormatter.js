@@ -12,13 +12,15 @@ sap.ui.define([
 			return oDate ? DateFormat.getDateInstance({ pattern: "dd-MM-yyyy" }).format(oDate) : "";
 		},
 
-		// Description from ConditionsSet, else the FDD name.
+		// Description from CAP ConditionTypes.
 		type: function (sType) {
-			return sType ? (pricingService.conditionTypeText(sType) || this._i18n("Pricing_Type_" + sType)) : "";
+			return sType ? pricingService.conditionTypeText(sType) : "";
 		},
 
+		// Description from CAP KeyCombinations.
 		combination: function (sComb) {
-			return sComb ? sComb + " · " + this._i18n("Pricing_Comb_" + sComb) : "";
+			var sText = sComb ? pricingService.combinationText(sComb) : "";
+			return sComb ? sComb + (sText ? " · " + sText : "") : "";
 		},
 
 		// Key values beyond Sales Org / DC / Campaign ID; "Campaign" when the combination has none.

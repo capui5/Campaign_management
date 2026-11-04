@@ -151,7 +151,7 @@ sap.ui.define([
         _showPricing: function (aRows) {
             var that = this;
             var oModel = this._model();
-            var nSaved = aRows.filter(function (o) { return o.status === pricingService.STATUS.SAVED; }).length;
+            var nSaved = aRows.filter(function (o) { return o.status === pricingService.STATUS.POSTED; }).length;
             oModel.setProperty("/conditions", aRows.map(function (o) {
                 return Object.assign({}, o, {
                     combinationText: pricingFormatter.combination.call(that, o.combination),
@@ -188,7 +188,7 @@ sap.ui.define([
             }
             var that = this;
             (this._model().getProperty("/conditions") || []).forEach(function (c) {
-                if (c.status === pricingService.STATUS.SAVED) {
+                if (c.status === pricingService.STATUS.POSTED) {
                     aEvents.push({
                         event: that._i18n("Camp_History_Pricing", [c.conditionType, c.combination, c.recordNo]),
                         user: c.createdBy,

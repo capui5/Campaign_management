@@ -36,6 +36,10 @@ server:
           - path: /luxasia/oDataV4/
             url: https://luxasia-otc-npr-cf-ap11-development-luxasia-cap-dev-srv.cfapps.ap11.hana.ondemand.com/
             destination: LUXASIA_CAP
+          - path: /sap/opu/odata/sap/API_SLSPRICINGCONDITIONRECORD_SRV/
+            url: http://der-otc-npr.sap.luxasia.ltd:44300
+            client: '200'
+            destination: LUXASIA_S4HANA
     - name: sap-fe-mockserver
       beforeMiddleware: csp
       configuration:
@@ -49,7 +53,13 @@ server:
             metadataPath: ./webapp/localService/oDataV4/metadata.xml
             mockdataPath: ./webapp/localService/oDataV4/data
             generateMockData: true
-        annotations: []
+          - urlPath: /sap/opu/odata/sap/API_SLSPRICINGCONDITIONRECORD_SRV
+            metadataPath: ./webapp/localService/API_SLSPRICINGCONDITIONRECORD_SRV/metadata.xml
+            mockdataPath: ./webapp/localService/API_SLSPRICINGCONDITIONRECORD_SRV/data
+            generateMockData: true
+        annotations:
+          - localPath: ./webapp/localService/API_SLSPRICINGCONDITIONRECORD_SRV/API_SLSPRICINGCONDIT_ANNO_MDL_01.xml
+            urlPath: /sap/opu/odata/IWFND/CATALOGSERVICE;v=2/Annotations(TechnicalName='API_SLSPRICINGCONDIT_ANNO_MDL_01',Version='0001')/$value/
 builder:
   resources:
     excludes:

@@ -1,0 +1,272 @@
+[
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000001",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000001",
+    "FIELD_CODE": "SALES_ORG",
+    "BUSINESS_KEY": "Sales Organization",
+    "S4_FIELD": "VKORG",
+    "SEQUENCE": 1,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000002",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000001",
+    "FIELD_CODE": "DIST_CHANNEL",
+    "BUSINESS_KEY": "Distribution Channel",
+    "S4_FIELD": "VTWEG",
+    "SEQUENCE": 2,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "10"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000003",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000001",
+    "FIELD_CODE": "CAMPAIGN",
+    "BUSINESS_KEY": "Campaign ID",
+    "S4_FIELD": "CAMPAIGN",
+    "SEQUENCE": 3,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000004",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000001",
+    "FIELD_CODE": "CUSTOMER",
+    "BUSINESS_KEY": "Customer",
+    "S4_FIELD": "KUNNR",
+    "SEQUENCE": 4,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000005",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000001",
+    "FIELD_CODE": "ARTICLE",
+    "BUSINESS_KEY": "Article / SKU",
+    "S4_FIELD": "MATNR",
+    "SEQUENCE": 5,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000006",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000002",
+    "FIELD_CODE": "SALES_ORG",
+    "BUSINESS_KEY": "Sales Organization",
+    "S4_FIELD": "VKORG",
+    "SEQUENCE": 1,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000007",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000002",
+    "FIELD_CODE": "DIST_CHANNEL",
+    "BUSINESS_KEY": "Distribution Channel",
+    "S4_FIELD": "VTWEG",
+    "SEQUENCE": 2,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "10"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000008",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000002",
+    "FIELD_CODE": "CAMPAIGN",
+    "BUSINESS_KEY": "Campaign ID",
+    "S4_FIELD": "CAMPAIGN",
+    "SEQUENCE": 3,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000009",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000002",
+    "FIELD_CODE": "ARTICLE",
+    "BUSINESS_KEY": "Article / SKU",
+    "S4_FIELD": "MATNR",
+    "SEQUENCE": 4,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000010",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000003",
+    "FIELD_CODE": "SALES_ORG",
+    "BUSINESS_KEY": "Sales Organization",
+    "S4_FIELD": "VKORG",
+    "SEQUENCE": 1,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000011",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000003",
+    "FIELD_CODE": "DIST_CHANNEL",
+    "BUSINESS_KEY": "Distribution Channel",
+    "S4_FIELD": "VTWEG",
+    "SEQUENCE": 2,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "10"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000012",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000003",
+    "FIELD_CODE": "CAMPAIGN",
+    "BUSINESS_KEY": "Campaign ID",
+    "S4_FIELD": "CAMPAIGN",
+    "SEQUENCE": 3,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000013",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000003",
+    "FIELD_CODE": "HIERARCHY",
+    "BUSINESS_KEY": "Hierarchy",
+    "S4_FIELD": "HIERARCHY",
+    "SEQUENCE": 4,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "L2"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000014",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000003",
+    "FIELD_CODE": "BRAND",
+    "BUSINESS_KEY": "Brand",
+    "S4_FIELD": "BRAND",
+    "SEQUENCE": 5,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000015",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000004",
+    "FIELD_CODE": "SALES_ORG",
+    "BUSINESS_KEY": "Sales Organization",
+    "S4_FIELD": "VKORG",
+    "SEQUENCE": 1,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000016",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000004",
+    "FIELD_CODE": "DIST_CHANNEL",
+    "BUSINESS_KEY": "Distribution Channel",
+    "S4_FIELD": "VTWEG",
+    "SEQUENCE": 2,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "10"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000017",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000004",
+    "FIELD_CODE": "CAMPAIGN",
+    "BUSINESS_KEY": "Campaign ID",
+    "S4_FIELD": "CAMPAIGN",
+    "SEQUENCE": 3,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000018",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000004",
+    "FIELD_CODE": "HIERARCHY",
+    "BUSINESS_KEY": "Hierarchy",
+    "S4_FIELD": "HIERARCHY",
+    "SEQUENCE": 4,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "L2"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000019",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000004",
+    "FIELD_CODE": "BRAND",
+    "BUSINESS_KEY": "Brand",
+    "S4_FIELD": "BRAND",
+    "SEQUENCE": 5,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000020",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000004",
+    "FIELD_CODE": "CUSTOMER",
+    "BUSINESS_KEY": "Customer",
+    "S4_FIELD": "KUNNR",
+    "SEQUENCE": 6,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000021",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000005",
+    "FIELD_CODE": "SALES_ORG",
+    "BUSINESS_KEY": "Sales Organization",
+    "S4_FIELD": "VKORG",
+    "SEQUENCE": 1,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000022",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000005",
+    "FIELD_CODE": "DIST_CHANNEL",
+    "BUSINESS_KEY": "Distribution Channel",
+    "S4_FIELD": "VTWEG",
+    "SEQUENCE": 2,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "10"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000023",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000005",
+    "FIELD_CODE": "CAMPAIGN",
+    "BUSINESS_KEY": "Campaign ID",
+    "S4_FIELD": "CAMPAIGN",
+    "SEQUENCE": 3,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000024",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000005",
+    "FIELD_CODE": "CUSTOMER",
+    "BUSINESS_KEY": "Customer",
+    "S4_FIELD": "KUNNR",
+    "SEQUENCE": 4,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000025",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000006",
+    "FIELD_CODE": "SALES_ORG",
+    "BUSINESS_KEY": "Sales Organization",
+    "S4_FIELD": "VKORG",
+    "SEQUENCE": 1,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000026",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000006",
+    "FIELD_CODE": "DIST_CHANNEL",
+    "BUSINESS_KEY": "Distribution Channel",
+    "S4_FIELD": "VTWEG",
+    "SEQUENCE": 2,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": "10"
+  },
+  {
+    "ID": "33333333-cccc-4231-89ab-000000000027",
+    "KEY_COMBINATION_ID": "22222222-bbbb-4231-89ab-000000000006",
+    "FIELD_CODE": "CAMPAIGN",
+    "BUSINESS_KEY": "Campaign ID",
+    "S4_FIELD": "CAMPAIGN",
+    "SEQUENCE": 3,
+    "REQUIRED": true,
+    "DEFAULT_VALUE": null
+  }
+]

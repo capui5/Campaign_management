@@ -1,0 +1,38 @@
+[
+  {
+    "ID": "22222222-bbbb-4231-89ab-000000000001",
+    "COMBINATION_CODE": "KC01",
+    "DESCRIPTION": "Campaign / Customer / Article",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "22222222-bbbb-4231-89ab-000000000002",
+    "COMBINATION_CODE": "KC02",
+    "DESCRIPTION": "Campaign / Article",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "22222222-bbbb-4231-89ab-000000000003",
+    "COMBINATION_CODE": "KC03",
+    "DESCRIPTION": "Campaign / Hierarchy / Brand",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "22222222-bbbb-4231-89ab-000000000004",
+    "COMBINATION_CODE": "KC04",
+    "DESCRIPTION": "Campaign / Hierarchy / Brand / Customer",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "22222222-bbbb-4231-89ab-000000000005",
+    "COMBINATION_CODE": "KC05",
+    "DESCRIPTION": "Campaign / Customer",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "22222222-bbbb-4231-89ab-000000000006",
+    "COMBINATION_CODE": "KC06",
+    "DESCRIPTION": "Campaign only",
+    "IS_ACTIVE": true
+  }
+]

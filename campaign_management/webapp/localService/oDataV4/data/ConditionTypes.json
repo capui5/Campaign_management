@@ -1,0 +1,42 @@
+[
+  {
+    "ID": "11111111-aaaa-4231-89ab-000000000001",
+    "CONDITION_CODE": "ZSRP",
+    "DESCRIPTION": "Special Price",
+    "LEVEL": "ITEM",
+    "VALUE_KIND": "PRICE",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "11111111-aaaa-4231-89ab-000000000002",
+    "CONDITION_CODE": "ZVHR",
+    "DESCRIPTION": "Item Amount Discount",
+    "LEVEL": "ITEM",
+    "VALUE_KIND": "AMOUNT",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "11111111-aaaa-4231-89ab-000000000003",
+    "CONDITION_CODE": "ZCVO",
+    "DESCRIPTION": "Header Amount Discount",
+    "LEVEL": "HEADER",
+    "VALUE_KIND": "AMOUNT",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "11111111-aaaa-4231-89ab-000000000004",
+    "CONDITION_CODE": "ZPWP",
+    "DESCRIPTION": "Item Percentage Discount",
+    "LEVEL": "ITEM",
+    "VALUE_KIND": "PERCENT",
+    "IS_ACTIVE": true
+  },
+  {
+    "ID": "11111111-aaaa-4231-89ab-000000000005",
+    "CONDITION_CODE": "ZPW1",
+    "DESCRIPTION": "Header Percentage Discount",
+    "LEVEL": "HEADER",
+    "VALUE_KIND": "PERCENT",
+    "IS_ACTIVE": true
+  }
+]

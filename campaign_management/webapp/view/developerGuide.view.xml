@@ -51,7 +51,7 @@
                     </HBox>
                 </VBox>
 
-                <!-- Proposed OData service contracts -->
+                <!-- OData service contracts (Campaign & Pricing Management API v1.0) -->
                 <VBox class="campCard">
                     <Title text="{i18n>Guide_Services}" titleStyle="H5" class="campCardTitle" />
                     <Table inset="false">
@@ -62,19 +62,29 @@
                         </columns>
                         <items>
                             <ColumnListItem>
-                                <Text text="ZUI_CAMPAIGN_MGMT" class="campCode" />
-                                <Text text="GET / POST / PATCH" />
+                                <Text text="/luxasia/oDataV4/Campaigns" class="campCode" />
+                                <Text text="GET" />
                                 <Text text="{i18n>Guide_Svc_Campaign}" />
                             </ColumnListItem>
                             <ColumnListItem>
-                                <Text text="ZUI_CAMP_PRICING" class="campCode" />
-                                <Text text="GET / POST / PATCH" />
-                                <Text text="{i18n>Guide_Svc_Pricing}" />
+                                <Text text="ZSDGW_CE_APP_SRV/CampaignsdSet" class="campCode" />
+                                <Text text="POST" />
+                                <Text text="{i18n>Guide_Svc_Campaign_S4}" />
                             </ColumnListItem>
                             <ColumnListItem>
-                                <Text text="ZUI_CAMP_CONFIG" class="campCode" />
+                                <Text text="/luxasia/oDataV4/ConditionTypes" class="campCode" />
+                                <Text text="GET" />
+                                <Text text="{i18n>Guide_Svc_Types}" />
+                            </ColumnListItem>
+                            <ColumnListItem>
+                                <Text text="/luxasia/oDataV4/ConditionTypeKeyCombinations" class="campCode" />
                                 <Text text="GET / PATCH" />
                                 <Text text="{i18n>Guide_Svc_Config}" />
+                            </ColumnListItem>
+                            <ColumnListItem>
+                                <Text text="/luxasia/oDataV4/CampaignPricingRecords" class="campCode" />
+                                <Text text="GET / POST / PATCH / DELETE" />
+                                <Text text="{i18n>Guide_Svc_Pricing}" />
                             </ColumnListItem>
                             <ColumnListItem>
                                 <Text text="ZUI_CAMP_VALUEHELP" class="campCode" />

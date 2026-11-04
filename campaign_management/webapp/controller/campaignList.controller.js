@@ -50,17 +50,37 @@ sap.ui.define([
             this._oCriteria = oCriteria;
             oViewModel.setProperty("/busy", true);
             return campaignService.search(oCriteria).then(function (aCampaigns) {
-                var mCounts = { all: aCampaigns.length, Active: 0, Upcoming: 0, Expired: 0 };
-                aCampaigns.forEach(function (c) {
-                    mCounts[c.status] = (mCounts[c.status] || 0) + 1;
-                });
-                oViewModel.setProperty("/counts", mCounts);
-                oViewModel.setProperty("/noDataText", that._i18n("Camp_No_Data"));
-                that._applyTab();
+                that._showCampaigns(aCampaigns);
             }).catch(function (oError) {
                 oViewModel.setProperty("/counts", {});
                 oViewModel.setProperty("/shown", 0);
                 oViewModel.setProperty("/noDataText", oError.message);
+                MessageBox.error(oError.message);
+            }).finally(function () {
+                oViewModel.setProperty("/busy", false);
+            });
+        },
+
+        // Counts of the loaded campaigns (20 per page, API §4.1) for the status tabs.
+        _showCampaigns: function (aCampaigns) {
+            var oViewModel = this.getView().getModel("view");
+            var mCounts = { all: aCampaigns.length, Active: 0, Upcoming: 0, Expired: 0 };
+            aCampaigns.forEach(function (c) {
+                mCounts[c.status] = (mCounts[c.status] || 0) + 1;
+            });
+            oViewModel.setProperty("/counts", mCounts);
+            oViewModel.setProperty("/noDataText", this._i18n("Camp_No_Data"));
+            this._applyTab();
+        },
+
+        // "More": the next 20 campaigns ($skip = campaigns read so far, API §4.1).
+        onMore: function () {
+            var that = this;
+            var oViewModel = this.getView().getModel("view");
+            oViewModel.setProperty("/busy", true);
+            campaignService.searchMore().then(function (aCampaigns) {
+                that._showCampaigns(aCampaigns);
+            }).catch(function (oError) {
                 MessageBox.error(oError.message);
             }).finally(function () {
                 oViewModel.setProperty("/busy", false);

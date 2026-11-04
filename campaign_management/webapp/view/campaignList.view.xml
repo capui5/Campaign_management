@@ -71,14 +71,12 @@
                     <Table id="campTable"
                         inset="false"
                         sticky="HeaderToolbar,ColumnHeaders"
-                        growing="true"
-                        growingThreshold="50"
                         noDataText="{view>/noDataText}"
                         busy="{view>/busy}"
-                        items="{path: 'CampModel>/campaigns', sorter: {path: 'id', descending: true}}">
+                        items="{path: 'CampModel>/campaigns'}">
                         <headerToolbar>
                             <OverflowToolbar>
-                                <Title text="{i18n>Camp_Campaigns} ({view>/shown})" />
+                                <Title text="{i18n>Camp_Campaigns} ({view>/shown} / {CampModel>/total})" />
                                 <ToolbarSpacer />
                                 <Button text="{i18n>Camp_Create}" icon="sap-icon://add" type="Emphasized" press="onCreate" />
                             </OverflowToolbar>
@@ -109,6 +107,10 @@
                             </ColumnListItem>
                         </items>
                     </Table>
+                    <!-- API §4.1: next 20 campaigns ($top=20, $skip = rows read so far) -->
+                    <HBox justifyContent="Center" visible="{CampModel>/hasMore}" class="sapUiSmallMarginTop">
+                        <Button text="{i18n>Camp_More}" icon="sap-icon://drill-down" press="onMore" enabled="{= !${view>/busy} }" />
+                    </HBox>
                 </content>
             </IconTabBar>
         </content>

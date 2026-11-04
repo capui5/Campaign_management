@@ -67,8 +67,8 @@
                         </VBox>
                         <VBox>
                             <Label text="{i18n>Pricing_Dist_Channel}" labelFor="pricingDistChannel" required="true" />
-                            <Input id="pricingDistChannel" value="{pricing>/draft/distChannel}" maxLength="2"
-                                valueState="{pricing>/state/distChannel}" valueStateText="{pricing>/stateText/distChannel}" liveChange="onFieldChange" />
+                            <Input id="pricingDistChannel" value="{pricing>/draft/distChannel}" editable="false"
+                                valueState="{pricing>/state/distChannel}" valueStateText="{pricing>/stateText/distChannel}" />
                         </VBox>
                         <VBox>
                             <Label text="{i18n>Camp_Id}" labelFor="pricingCampaignId" />
@@ -76,8 +76,7 @@
                         </VBox>
                         <VBox visible="{pricing>/fields/brand}">
                             <Label text="{i18n>Pricing_Hierarchy}" labelFor="pricingHierarchy" required="true" />
-                            <Input id="pricingHierarchy" value="{pricing>/draft/hierarchy}" maxLength="2"
-                                placeholder="{i18n>Pricing_Hierarchy_Placeholder}" liveChange="onFieldChange"
+                            <Input id="pricingHierarchy" value="{pricing>/draft/hierarchy}" editable="false"
                                 valueState="{pricing>/state/hierarchy}" valueStateText="{pricing>/stateText/hierarchy}" />
                         </VBox>
                         <VBox visible="{pricing>/fields/brand}">
@@ -134,10 +133,6 @@
                                 valueState="{pricing>/state/uom}" valueStateText="{pricing>/stateText/uom}" liveChange="onFieldChange" />
                         </VBox>
                     </l:Grid>
-                    <MessageStrip text="{i18n>Pricing_Sign_Hint}" type="Information" showIcon="true" class="sapUiSmallMarginTop"
-                        visible="{= ${pricing>/kind} !== 'price' }" />
-                    <MessageStrip text="{i18n>Pricing_Not_Configured}" type="Warning" showIcon="true" class="sapUiSmallMarginTop"
-                        visible="{= !${pricing>/configured} }" />
                     <HBox justifyContent="End" class="sapUiSmallMarginTop">
                         <Button text="{i18n>Pricing_Config_View}" press="onOpenConfig" />
                         <Button text="{i18n>Pricing_Clear}" press="onClearDraft" class="sapUiTinyMarginBegin" />
@@ -189,9 +184,7 @@
                                     <Text text="{PricingModel>recordNo}" />
                                     <HBox justifyContent="End">
                                         <Button icon="sap-icon://delete" type="Transparent" tooltip="{i18n>Pricing_Remove}" press="onRemoveRow"
-                                            visible="{= ${PricingModel>status} !== 'Saved' }" />
-                                        <Button icon="sap-icon://date-time" type="Transparent" tooltip="{i18n>Pricing_Delimit}" press="onDelimit"
-                                            visible="{= ${PricingModel>status} === 'Saved' }" />
+                                            visible="{= !!${PricingModel>deletable} }" />
                                     </HBox>
                                 </cells>
                             </ColumnListItem>

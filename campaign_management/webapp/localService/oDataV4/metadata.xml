@@ -59,12 +59,135 @@
                 <EntitySet Name="CustomerV1" EntityType="LuxasiaSB.CustomerV1Parameters">
                     <NavigationPropertyBinding Path="Set/Parameters" Target="CustomerV1"/>
                 </EntitySet>
+                <EntitySet Name="ConditionTypes" EntityType="LuxasiaSB.ConditionTypes"/>
+                <EntitySet Name="KeyCombinations" EntityType="LuxasiaSB.KeyCombinations">
+                    <NavigationPropertyBinding Path="BUSINESS_KEYS" Target="BusinessKeys"/>
+                </EntitySet>
+                <EntitySet Name="BusinessKeys" EntityType="LuxasiaSB.BusinessKeys">
+                    <NavigationPropertyBinding Path="KEY_COMBINATION" Target="KeyCombinations"/>
+                </EntitySet>
+                <EntitySet Name="ConditionTypeKeyCombinations" EntityType="LuxasiaSB.ConditionTypeKeyCombinations">
+                    <NavigationPropertyBinding Path="CONDITION_TYPE" Target="ConditionTypes"/>
+                    <NavigationPropertyBinding Path="KEY_COMBINATION" Target="KeyCombinations"/>
+                </EntitySet>
+                <EntitySet Name="Campaigns" EntityType="LuxasiaSB.Campaigns"/>
+                <EntitySet Name="CampaignPricingRecords" EntityType="LuxasiaSB.CampaignPricingRecords">
+                    <NavigationPropertyBinding Path="CONDITION_TYPE" Target="ConditionTypes"/>
+                    <NavigationPropertyBinding Path="KEY_COMBINATION" Target="KeyCombinations"/>
+                </EntitySet>
                 <ActionImport Name="insert" Action="LuxasiaSB.insert"/>
                 <FunctionImport Name="getOrCreateSession" Function="LuxasiaSB.getOrCreateSession"/>
                 <ActionImport Name="addSessionItem" Action="LuxasiaSB.addSessionItem"/>
                 <ActionImport Name="updateSessionItem" Action="LuxasiaSB.updateSessionItem"/>
                 <ActionImport Name="postStock" Action="LuxasiaSB.postStock"/>
             </EntityContainer>
+            <EntityType Name="ConditionTypes">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="CONDITION_CODE" Type="Edm.String" MaxLength="4"/>
+                <Property Name="DESCRIPTION" Type="Edm.String" MaxLength="60"/>
+                <Property Name="LEVEL" Type="Edm.String" MaxLength="10"/>
+                <Property Name="VALUE_KIND" Type="Edm.String" MaxLength="10"/>
+                <Property Name="IS_ACTIVE" Type="Edm.Boolean"/>
+            </EntityType>
+            <EntityType Name="KeyCombinations">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="COMBINATION_CODE" Type="Edm.String" MaxLength="10"/>
+                <Property Name="DESCRIPTION" Type="Edm.String" MaxLength="100"/>
+                <Property Name="IS_ACTIVE" Type="Edm.Boolean"/>
+                <NavigationProperty Name="BUSINESS_KEYS" Type="Collection(LuxasiaSB.BusinessKeys)" Partner="KEY_COMBINATION"/>
+            </EntityType>
+            <EntityType Name="BusinessKeys">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="KEY_COMBINATION_ID" Type="Edm.Guid"/>
+                <Property Name="FIELD_CODE" Type="Edm.String" MaxLength="30"/>
+                <Property Name="BUSINESS_KEY" Type="Edm.String" MaxLength="60"/>
+                <Property Name="S4_FIELD" Type="Edm.String" MaxLength="30"/>
+                <Property Name="SEQUENCE" Type="Edm.Int32"/>
+                <Property Name="REQUIRED" Type="Edm.Boolean"/>
+                <Property Name="DEFAULT_VALUE" Type="Edm.String" MaxLength="40"/>
+                <NavigationProperty Name="KEY_COMBINATION" Type="LuxasiaSB.KeyCombinations" Partner="BUSINESS_KEYS">
+                    <ReferentialConstraint Property="KEY_COMBINATION_ID" ReferencedProperty="ID"/>
+                </NavigationProperty>
+            </EntityType>
+            <EntityType Name="ConditionTypeKeyCombinations">
+                <Key>
+                    <PropertyRef Name="CONDITION_TYPE_ID"/>
+                    <PropertyRef Name="KEY_COMBINATION_ID"/>
+                </Key>
+                <Property Name="CONDITION_TYPE_ID" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="KEY_COMBINATION_ID" Type="Edm.Guid" Nullable="false"/>
+                <Property Name="CONDITION_TABLE_NUMBER" Type="Edm.String" MaxLength="3"/>
+                <Property Name="DEFAULT_FLAG" Type="Edm.Boolean"/>
+                <Property Name="IS_ACTIVE" Type="Edm.Boolean"/>
+                <NavigationProperty Name="CONDITION_TYPE" Type="LuxasiaSB.ConditionTypes">
+                    <ReferentialConstraint Property="CONDITION_TYPE_ID" ReferencedProperty="ID"/>
+                </NavigationProperty>
+                <NavigationProperty Name="KEY_COMBINATION" Type="LuxasiaSB.KeyCombinations">
+                    <ReferentialConstraint Property="KEY_COMBINATION_ID" ReferencedProperty="ID"/>
+                </NavigationProperty>
+            </EntityType>
+            <EntityType Name="Campaigns">
+                <Key>
+                    <PropertyRef Name="CampaignId"/>
+                </Key>
+                <Property Name="CampaignId" Type="Edm.String" MaxLength="12" Nullable="false"/>
+                <Property Name="CampaignIdDesc" Type="Edm.String" MaxLength="50"/>
+                <Property Name="BrandId" Type="Edm.String" MaxLength="4"/>
+                <Property Name="ValidFrom" Type="Edm.String" MaxLength="8"/>
+                <Property Name="ValidTo" Type="Edm.String" MaxLength="8"/>
+                <Property Name="Loyprogid" Type="Edm.String" MaxLength="10"/>
+                <Property Name="Pointsconsu" Type="Edm.Decimal" Precision="15" Scale="2"/>
+                <Property Name="Camptype" Type="Edm.String" MaxLength="10"/>
+                <Property Name="Country" Type="Edm.String" MaxLength="3"/>
+                <Property Name="CampaignCat" Type="Edm.String" MaxLength="10"/>
+                <Property Name="Crename" Type="Edm.String" MaxLength="12"/>
+                <Property Name="Credate" Type="Edm.String" MaxLength="8"/>
+                <Property Name="DocDate" Type="Edm.String" MaxLength="8"/>
+            </EntityType>
+            <EntityType Name="CampaignPricingRecords">
+                <Key>
+                    <PropertyRef Name="ID"/>
+                </Key>
+                <Property Name="ID" Type="Edm.String" MaxLength="36" Nullable="false"/>
+                <Property Name="CAMPAIGN_ID" Type="Edm.String" MaxLength="12"/>
+                <Property Name="CONDITION_CODE" Type="Edm.String" MaxLength="4"/>
+                <Property Name="COMBINATION_CODE" Type="Edm.String" MaxLength="10"/>
+                <Property Name="SALES_ORG" Type="Edm.String" MaxLength="4"/>
+                <Property Name="DISTRIBUTION_CHANNEL" Type="Edm.String" MaxLength="2"/>
+                <Property Name="CUSTOMER" Type="Edm.String" MaxLength="10"/>
+                <Property Name="ARTICLE_SKU" Type="Edm.String" MaxLength="40"/>
+                <Property Name="BRAND" Type="Edm.String" MaxLength="4"/>
+                <Property Name="HIERARCHY" Type="Edm.String" MaxLength="2"/>
+                <Property Name="VALID_FROM" Type="Edm.Date"/>
+                <Property Name="VALID_TO" Type="Edm.Date"/>
+                <Property Name="CONDITION_VALUE" Type="Edm.Decimal" Precision="15" Scale="2"/>
+                <Property Name="CURRENCY" Type="Edm.String" MaxLength="5"/>
+                <Property Name="PRICING_UNIT" Type="Edm.Decimal" Precision="13" Scale="3"/>
+                <Property Name="UNIT_OF_MEASURE" Type="Edm.String" MaxLength="3"/>
+                <Property Name="STATUS" Type="Edm.String" MaxLength="10"/>
+                <Property Name="RECORD_NUMBER" Type="Edm.String" MaxLength="10"/>
+                <Property Name="CONDITION_TABLE_NUMBER" Type="Edm.String" MaxLength="3"/>
+                <Property Name="ERROR_MESSAGE" Type="Edm.String" MaxLength="500"/>
+                <Property Name="CREATED_BY" Type="Edm.String" MaxLength="255"/>
+                <Property Name="CREATED_AT" Type="Edm.DateTimeOffset" Precision="7"/>
+                <Property Name="MODIFIED_BY" Type="Edm.String" MaxLength="255"/>
+                <Property Name="MODIFIED_AT" Type="Edm.DateTimeOffset" Precision="7"/>
+                <NavigationProperty Name="CONDITION_TYPE" Type="LuxasiaSB.ConditionTypes">
+                    <ReferentialConstraint Property="CONDITION_CODE" ReferencedProperty="CONDITION_CODE"/>
+                </NavigationProperty>
+                <NavigationProperty Name="KEY_COMBINATION" Type="LuxasiaSB.KeyCombinations">
+                    <ReferentialConstraint Property="COMBINATION_CODE" ReferencedProperty="COMBINATION_CODE"/>
+                </NavigationProperty>
+            </EntityType>
             <EntityType Name="Users">
                 <Key>
                     <PropertyRef Name="Email"/>

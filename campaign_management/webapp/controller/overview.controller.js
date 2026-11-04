@@ -22,7 +22,7 @@ sap.ui.define([
             var oComponent = this.getOwnerComponent();
             oModel.setProperty("/busy", true);
             Promise.all([campaignService.init(oComponent), pricingService.init(oComponent)]).then(function () {
-                return campaignService.search({});
+                return campaignService.searchAll({});
             }).then(function (aCampaigns) {
                 var aConfigs = pricingService.getModel().getProperty("/configs") || [];
                 oModel.setProperty("/campaigns", aCampaigns.length);

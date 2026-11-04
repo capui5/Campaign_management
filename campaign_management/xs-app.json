@@ -10,6 +10,13 @@
       "csrfProtection": false
     },
     {
+      "source": "^/luxasia/oDataV4/(.*)$",
+      "target": "/luxasia/oDataV4/$1",
+      "destination": "LUXASIA_CAP",
+      "authenticationType": "xsuaa",
+      "csrfProtection": true
+    },
+    {
       "source": "^/user-api(.*)",
       "target": "$1",
       "service": "sap-approuter-userapi"
