@@ -118,6 +118,11 @@ sap.ui.define([
                     MessageBox.warning(pricingService.getModel().getProperty("/keysError"));
                 }
                 that._resetDraft(bKnown ? sType : (aTypes[0] || {}).key || "");
+                // Sections 1 - 3 show the campaign's latest stored record (API 5.1); section 4 lists all.
+                var oLatest = that._latestRecord(aResults[1]);
+                if (oLatest) {
+                    that._fillFromRecord(oLatest);
+                }
             }).catch(function (oError) {
                 MessageBox.error(oError.message);
             }).finally(function () {
@@ -228,6 +233,66 @@ sap.ui.define([
             oModel.setProperty("/configured", bConfigured);
             oModel.setProperty("/tableText", bConfigured ? pricingService.tableName(oCfg.tableNo) : this._i18n("Pricing_Not_Configured_Short"));
             this._clearStates();
+        },
+
+        // Most recently changed (else created) record of the campaign; the last read when equal.
+        _latestRecord: function (aRows) {
+            var fnTime = function (o) {
+                var d = o.changedOn || o.createdOn;
+                return d ? d.getTime() : 0;
+            };
+            return (aRows || []).reduce(function (oBest, o) {
+                return !oBest || fnTime(o) >= fnTime(oBest) ? o : oBest;
+            }, null);
+        },
+
+        // Tokens of a multi-select field for one value, with the value help text when it is loaded.
+        _tokensFor: function (sField, sKey) {
+            if (!sKey) {
+                return [];
+            }
+            var oItem = (pricingService.getModel().getProperty("/" + PICK[sField].list) || []).find(function (o) {
+                return o.key === sKey;
+            });
+            return [{ key: sKey, text: (oItem && oItem.text) || sKey }];
+        },
+
+        // Sections 1 - 3 from a stored record: condition type, combination and all condition details.
+        // Distribution channel and hierarchy still come from the combination's business keys.
+        _fillFromRecord: function (oRow) {
+            var that = this;
+            var oModel = this._model();
+            var bTypeKnown = (oModel.getProperty("/types") || []).some(function (t) { return t.key === oRow.conditionType; });
+            if (!bTypeKnown) {
+                return false;
+            }
+            var bPercent = (pricingService.typeInfo(oRow.conditionType) || {}).kind === "percent";
+            var oDraft = this._blankDetails(Object.assign({}, oModel.getProperty("/draft"), {
+                conditionType: oRow.conditionType,
+                combination: oRow.combination
+            }));
+            ["salesOrg", "customer", "article", "brand", "uom"].forEach(function (k) {
+                oDraft[k] = oRow[k] || "";
+                oDraft[k + "Tokens"] = that._tokensFor(k, oRow[k]);
+            });
+            oDraft.rateUnit = bPercent ? pricingService.PERCENT : (oRow.rateUnit || "");
+            oDraft.rateUnitTokens = bPercent ? [] : this._tokensFor("rateUnit", oRow.rateUnit);
+            oDraft.rate = oRow.rate || "";
+            oDraft.pricingUnit = oRow.pricingUnit || "";
+            oDraft.validFrom = oRow.validFrom ? new Date(oRow.validFrom.getTime()) : null;
+            oDraft.validTo = oRow.validTo ? new Date(oRow.validTo.getTime()) : null;
+            oModel.setProperty("/draft", oDraft);
+            this._applyType();
+            return true;
+        },
+
+        // A record of the table is shown in sections 1 - 3.
+        onRecordPress: function (oEvent) {
+            var oRow = oEvent.getSource().getBindingContext("PricingModel").getObject();
+            if (this._fillFromRecord(oRow)) {
+                MessageToast.show(this._i18n("Pricing_Record_Loaded", [oRow.conditionType, oRow.combination]));
+                this.byId("pricingConditionsPage").scrollTo(0, 200);
+            }
         },
 
         onCampaignChange: function (oEvent) {
@@ -460,7 +525,7 @@ sap.ui.define([
             return oEvent.getSource().getBindingContext("PricingModel").getObject();
         },
 
-        // Draft / failed records are deleted from the campaign pricing store (CampaignPricingRecords DELETE).
+        // Only draft records (API 5.5) are deleted from the campaign pricing store (CampaignPricingRecords DELETE).
         onRemoveRow: function (oEvent) {
             var that = this;
             var oModel = this._model();

@@ -201,7 +201,7 @@
                             <Column hAlign="End" width="6rem"><Text text="" /></Column>
                         </columns>
                         <items>
-                            <ColumnListItem>
+                            <ColumnListItem type="Active" press="onRecordPress">
                                 <cells>
                                     <ObjectIdentifier title="{PricingModel>conditionType}" text="{path: 'PricingModel>conditionType', formatter: '.formatType'}" />
                                     <Text text="{path: 'PricingModel>combination', formatter: '.formatCombination'}" />
