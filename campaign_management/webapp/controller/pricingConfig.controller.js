@@ -57,6 +57,11 @@ sap.ui.define([
             oModel.setProperty("/busy", true);
             this._showFields(null);
             pricingService.init(this.getOwnerComponent()).then(function () {
+                // API 2.1 / 3.2 / 3.1 read again: the table shows the current CAP configuration.
+                return pricingService.reloadCatalog().catch(function (oError) {
+                    MessageBox.warning(oError.message);
+                });
+            }).then(function () {
                 oModel.setProperty("/types", [{ key: "", text: that._i18n("Config_All_Types") }].concat(
                     pricingService.conditionTypes().map(function (k) {
                         return { key: k, text: k + " — " + that.formatType(k) };

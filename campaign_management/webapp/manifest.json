@@ -131,7 +131,9 @@
       "API_SLSPRICINGCONDITIONRECORD_SRV": {
         "dataSource": "API_SLSPRICINGCONDITIONRECORD_SRV",
         "preload": true,
-        "settings": {}
+        "settings": {
+          "useBatch": false
+        }
       }
     },
     "resources": {

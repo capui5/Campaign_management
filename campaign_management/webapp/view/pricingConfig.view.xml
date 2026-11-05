@@ -52,7 +52,7 @@
                             <ColumnListItem>
                                 <cells>
                                     <ObjectIdentifier title="{PricingModel>conditionType}" text="{path: 'PricingModel>conditionType', formatter: '.formatType'}" />
-                                    <Text text="{PricingModel>combination}" />
+                                    <ObjectIdentifier title="{PricingModel>combination}" text="{PricingModel>fieldSet}" />
                                     <Text text="{path: 'PricingModel>combination', formatter: '.formatBusinessKey'}" />
                                     <Input value="{PricingModel>tableNo}" maxLength="3" placeholder="###" liveChange="onTableNoChange"
                                         valueState="{path: 'PricingModel>tableNo', formatter: '.formatTableNoState'}"

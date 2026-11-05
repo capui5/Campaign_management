@@ -197,7 +197,7 @@
                             <Column hAlign="End"><Text text="{i18n>Pricing_Col_Value}" /></Column>
                             <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Pricing_Col_Validity}" /></Column>
                             <Column><Text text="{i18n>Camp_Status}" /></Column>
-                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Pricing_Col_Record}" /></Column>
+                            <Column><Text text="{i18n>Pricing_Col_Record}" /></Column>
                             <Column hAlign="End" width="6rem"><Text text="" /></Column>
                         </columns>
                         <items>
@@ -213,7 +213,7 @@
                                         <ObjectStatus text="{path: 'PricingModel>status', formatter: '.formatStatus'}" state="{PricingModel>statusState}" inverted="true" />
                                         <Text text="{PricingModel>message}" visible="{= !!${PricingModel>message} }" class="campRowMessage" />
                                     </VBox>
-                                    <Text text="{PricingModel>recordNo}" />
+                                    <ObjectIdentifier title="{PricingModel>recordNo}" />
                                     <HBox justifyContent="End">
                                         <Button icon="sap-icon://delete" type="Transparent" tooltip="{i18n>Pricing_Remove}" press="onRemoveRow"
                                             visible="{= !!${PricingModel>deletable} }" />

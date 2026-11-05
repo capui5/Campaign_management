@@ -96,6 +96,12 @@ sap.ui.define([
             oModel.setProperty("/busy", true);
             var oComponent = this.getOwnerComponent();
             Promise.all([campaignService.init(oComponent), pricingService.init(oComponent)]).then(function () {
+                // Current table numbers / active flags from CAP (API 2.1 / 3.2 / 3.1), also when they
+                // were maintained after the app was opened.
+                return pricingService.reloadCatalog().catch(function (oError) {
+                    MessageBox.warning(oError.message);
+                });
+            }).then(function () {
                 that.getView().setModel(pricingService.getModel(), "PricingModel");
                 that._filterRecords(sId);
                 // Sales org / brand / customer / article value help lists (CAP).
@@ -556,10 +562,20 @@ sap.ui.define([
             pricingService.save(oModel.getProperty("/campaignId")).then(function (o) {
                 if (!o.saved && !o.failed && !o.errors) {
                     MessageBox.information(that._i18n("Pricing_Nothing_Open"));
+                } else if (!o.saved) {
+                    // Nothing posted: error with the S/4 / validation messages shown directly.
+                    MessageBox.error(that._i18n("Pricing_Save_Failed", [o.failed, o.errors]) + "\n\n" +
+                        (o.messages || []).join("\n"));
                 } else if (o.failed || o.errors) {
-                    MessageBox.warning(that._i18n("Pricing_Save_Partial", [o.saved, o.failed, o.errors]));
+                    // Some posted, some not: warning.
+                    MessageBox.warning(that._i18n("Pricing_Save_Partial", [o.saved, o.failed, o.errors]), {
+                        details: (o.posted || []).length ? that._i18n("Pricing_Record_Numbers") + "\n" +
+                            o.posted.join("\n") + "\n\n" + (o.messages || []).join("\n") : (o.messages || []).join("\n")
+                    });
                 } else {
-                    MessageBox.success(that._i18n("Pricing_Save_Ok", [o.saved]));
+                    // The S/4 record numbers (KNUMH) are also in the Record No. column of the table.
+                    MessageBox.success(that._i18n("Pricing_Save_Ok", [o.saved]) + "\n\n" +
+                        that._i18n("Pricing_Record_Numbers") + "\n" + (o.posted || []).join("\n"));
                 }
             }).catch(function (oError) {
                 MessageBox.error(oError.message);

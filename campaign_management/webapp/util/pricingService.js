@@ -199,6 +199,7 @@ sap.ui.define([
 	var _oComponent = null;
 	var _oModel = null;
 	var _pInit = null;
+	var _bFreshCatalog = false; // catalogue just read by init(); the next reloadCatalog() skips
 	var _pValueHelps = null;
 	var _iRowSeq = 0;
 	var _mAvailable = { config: false, records: false, posting: false };
@@ -297,7 +298,8 @@ sap.ui.define([
 		try {
 			var oBody = JSON.parse(oError.responseText).error;
 			((oBody.innererror && oBody.innererror.errordetails) || []).forEach(function (d) {
-				if (d.severity !== "info") {
+				// skip the generic Gateway wrappers ("Exception raised without specific error", ...)
+				if (d.severity !== "info" && !/^\/IWBEP\/CX_MGW_/.test(d.code || "")) {
 					aMsg.push(_err(d.message, d.target));
 				}
 			});
@@ -803,12 +805,14 @@ sap.ui.define([
 			ConditionValidityEndDate: _toS4Date(oRow.validTo)
 		}, _s4Keys(oRow));
 		var o = {
-			ConditionTable: oRow.tableNo,
 			ConditionApplication: S4_APPLICATION,
 			ConditionType: oRow.conditionType,
 			ConditionRateValue: String(oRow.rate).trim(),
 			ConditionRateValueUnit: sKind === "percent" ? PERCENT : oRow.rateUnit
 		};
+		if (oRow.tableNo) {
+			o.ConditionTable = oRow.tableNo;
+		}
 		if (sKind !== "percent") {
 			o.ConditionCurrency = oRow.rateUnit;
 		}
@@ -956,16 +960,6 @@ sap.ui.define([
 		return _rows().filter(function (o) { return o.campaignId === sCampaignId; });
 	}
 
-	// Posting needs an active mapping with a condition table number (Addendum v1.1 §21).
-	function _mappingError(oRow) {
-		var oCfg = getConfig(oRow.conditionType, oRow.combination);
-		if (!oCfg || !oCfg.active || !oCfg.tableNo) {
-			return _err("No active condition table (Axxx) is configured for " + oRow.conditionType + " " +
-				oRow.combination + "; posting is blocked until the SD team maintains it.", "combination");
-		}
-		return null;
-	}
-
 	// Draft, failed and locally invalid rows are re-validated; posted ones are final.
 	function _validateOpen(sCampaignId) {
 		var aAll = conditionsOf(sCampaignId);
@@ -981,6 +975,16 @@ sap.ui.define([
 		return aOpen;
 	}
 
+	// "ZSRP KC01 MY01 / 0010000001 / ...: <message>" for every row of the campaign in status Error.
+	function _errorTexts(sCampaignId) {
+		return conditionsOf(sCampaignId).filter(function (o) {
+			return o.status === STATUS.ERROR;
+		}).map(function (o) {
+			var sKeys = [o.salesOrg, o.customer, o.article, o.brand].filter(Boolean).join(" / ");
+			return o.conditionType + " " + o.combination + (sKeys ? " " + sKeys : "") + ": " + o.message;
+		});
+	}
+
 	// S/4 post of one record; resolves with the KNUMH.
 	function _postToS4(oRow) {
 		var oPayload;
@@ -990,10 +994,14 @@ sap.ui.define([
 			return Promise.reject(e);
 		}
 		return _post(S4_CONDITION_SET, oPayload).then(function (oData) {
-			if (!oData.ConditionRecord) {
-				throw _throw(_err("No condition record number was returned."));
+			// KNUMH: on the header, else on the returned validity entry of the deep insert.
+			var oValidity = oData.to_SlsPrcgCndnRecdValidity || {};
+			var aValidity = oValidity.results || (Array.isArray(oValidity) ? oValidity : []);
+			var sRecordNo = oData.ConditionRecord || (aValidity[0] || {}).ConditionRecord || "";
+			if (!sRecordNo) {
+				throw _throw(_err("S/4 did not return a condition record number."));
 			}
-			return oData.ConditionRecord;
+			return sRecordNo;
 		});
 	}
 
@@ -1055,6 +1063,7 @@ sap.ui.define([
 				_oModel = _newModel();
 			}
 			if (!_pInit) {
+				_bFreshCatalog = true;
 				_pInit = Promise.all([_detectPosting(), _loadCatalog()]).then(_publishAvailability).catch(function (oError) {
 					_pInit = null;
 					throw oError;
@@ -1065,6 +1074,51 @@ sap.ui.define([
 
 		getModel: function () {
 			return _oModel;
+		},
+
+		// Reads condition types (API 2.1), the matrix (3.2) and the business keys per type (3.1) again,
+		// so table numbers / flags maintained in CAP since the last read are used. Mappings edited here
+		// and not saved yet are kept. When CAP cannot be read, the previous catalogue stays.
+		reloadCatalog: function () {
+			var that = this;
+			return this.init(_oComponent).then(function () {
+				if (_bFreshCatalog) {
+					// init has just read it
+					_bFreshCatalog = false;
+					return that;
+				}
+				var oBefore = {
+					types: _mTypes, combs: _mCombs, order: _aTypeOrder, configs: _configs(),
+					available: Object.assign({}, _mAvailable), keysError: _oModel.getProperty("/keysError")
+				};
+				var aDirty = oBefore.configs.filter(function (c) { return c.dirty; });
+				return _loadCatalog().then(function () {
+					if (!_mAvailable.config && oBefore.available.config) {
+						var sError = _oModel.getProperty("/serviceError");
+						_mTypes = oBefore.types;
+						_mCombs = oBefore.combs;
+						_aTypeOrder = oBefore.order;
+						_mAvailable.config = oBefore.available.config;
+						_mAvailable.records = oBefore.available.records;
+						_oModel.setProperty("/configs", oBefore.configs);
+						_oModel.setProperty("/keysError", oBefore.keysError);
+						_oModel.setProperty("/serviceError", "");
+						throw new Error(sError || "The pricing configuration could not be read again.");
+					}
+					var aConfigs = _configs();
+					aDirty.forEach(function (d) {
+						var i = aConfigs.findIndex(function (c) {
+							return c.conditionType === d.conditionType && c.combination === d.combination;
+						});
+						if (i !== -1) {
+							aConfigs[i] = d;
+						}
+					});
+					_oModel.setProperty("/configs", aConfigs);
+					_publishAvailability();
+					return that;
+				});
+			});
 		},
 
 		// "config" / "records": CAP service readable; "posting": S/4 A_SlsPrcgConditionRecord reachable.
@@ -1229,9 +1283,8 @@ sap.ui.define([
 			var aValid = _validateOpen(sCampaignId).filter(function (o) { return o.status !== STATUS.ERROR; });
 			if (!aValid.length) {
 				_refresh();
-				return Promise.resolve({ saved: 0, failed: 0, errors: conditionsOf(sCampaignId).filter(function (o) {
-					return o.status === STATUS.ERROR;
-				}).length });
+				var aErrors = _errorTexts(sCampaignId);
+				return Promise.resolve({ saved: 0, failed: 0, errors: aErrors.length, messages: aErrors });
 			}
 			if (!_mAvailable.posting) {
 				_refresh();
@@ -1241,12 +1294,10 @@ sap.ui.define([
 			}
 			var aPost = [];
 			aValid.forEach(function (oRow) {
-				var oMappingErr = _mappingError(oRow);
-				if (oMappingErr) {
-					_setStatus(oRow, STATUS.ERROR, oMappingErr.text);
-					return;
-				}
-				oRow.tableNo = getConfig(oRow.conditionType, oRow.combination).tableNo;
+				// No UI block on the condition table: the configured number, else the record's own
+				// CONDITION_TABLE_NUMBER; S/4 decides and its answer is stored (POSTED / FAILED).
+				var oCfg = getConfig(oRow.conditionType, oRow.combination);
+				oRow.tableNo = (oCfg && oCfg.tableNo) || oRow.tableNo || "";
 				aPost.push(oRow);
 			});
 			return Promise.allSettled(aPost.map(function (oRow) {
@@ -1259,11 +1310,23 @@ sap.ui.define([
 				});
 			})).then(function (aResults) {
 				_refresh();
-				var aAll = conditionsOf(sCampaignId);
+				var aErrors = _errorTexts(sCampaignId);
+				var aFailed = aResults.filter(function (r) { return r.status === "rejected"; }).map(function (r) {
+					return (r.reason && r.reason.message) || String(r.reason);
+				});
+				// "ZSRP KC01 MY01 / 0010000001 / ...: 0000123456" for every row posted now.
+				var aPosted = aPost.filter(function (oRow, i) {
+					return aResults[i].status === "fulfilled";
+				}).map(function (o) {
+					var sKeys = [o.salesOrg, o.customer, o.article, o.brand].filter(Boolean).join(" / ");
+					return o.conditionType + " " + o.combination + (sKeys ? " " + sKeys : "") + ": " + o.recordNo;
+				});
 				return {
+					posted: aPosted,
 					saved: aResults.filter(function (r) { return r.status === "fulfilled"; }).length,
-					failed: aResults.filter(function (r) { return r.status === "rejected"; }).length,
-					errors: aAll.filter(function (o) { return o.status === STATUS.ERROR; }).length
+					failed: aFailed.length,
+					errors: aErrors.length,
+					messages: aErrors.concat(aFailed)
 				};
 			});
 		},
@@ -1373,6 +1436,7 @@ sap.ui.define([
 		_reset: function () {
 			_oModel = null;
 			_pInit = null;
+			_bFreshCatalog = false;
 			_pValueHelps = null;
 			_iRowSeq = 0;
 			_mAvailable = { config: false, records: false, posting: false };
