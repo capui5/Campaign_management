@@ -59,6 +59,15 @@ sap.ui.define([
 	var S4_CONDITION_SET = "/A_SlsPrcgConditionRecord";
 	var S4_VALIDITY_TYPE = "A_SlsPrcgCndnRecdValidityType";
 	var S4_APPLICATION = "V"; // sales
+	// Header defaults of the S/4 deep insert, used when the row does not carry its own value
+	// (no configured condition table, percentage types without currency / quantity).
+	var S4_DEFAULT_TABLE = "949";
+	var S4_DEFAULT_CURRENCY = "EUR";
+	var S4_DEFAULT_QUANTITY = "1";
+	var S4_DEFAULT_QUANTITY_UNIT = "PC";
+	// Property order of the validity entry in the payload.
+	var S4_VALIDITY_ORDER = ["ConditionValidityStartDate", "ConditionValidityEndDate", "SalesOrganization",
+		"DistributionChannel", "Customer", "Material", "ZZCAMPAIGN"];
 	var SALES_ORG_SET = "SalesOrganizations";
 	var BRAND_SET = "BrandsMaster";
 	var CUSTOMER_SET = "Customers";
@@ -798,47 +807,41 @@ sap.ui.define([
 
 	// A_SlsPrcgConditionRecord deep insert: header (table, application, type, rate) + one validity
 	// entry with dates and the combination's key fields.
+	// "100" -> "100.00"; more decimals than two are kept as entered.
+	function _s4Rate(vRate) {
+		var sRate = String(vRate).trim();
+		var iDecimals = (sRate.split(".")[1] || "").length;
+		return Number(sRate).toFixed(Math.max(2, iDecimals));
+	}
+
 	function _s4Payload(oRow) {
 		var sKind = (_mTypes[oRow.conditionType] || {}).kind;
-		var oValidity = Object.assign({
+		var bPercent = sKind === "percent";
+		var bPrice = sKind === "price";
+		var oAll = Object.assign({
 			ConditionValidityStartDate: _toS4Date(oRow.validFrom),
 			ConditionValidityEndDate: _toS4Date(oRow.validTo)
 		}, _s4Keys(oRow));
-		var o = {
+		var oValidity = {};
+		S4_VALIDITY_ORDER.concat(Object.keys(oAll)).forEach(function (sProp) {
+			if (sProp in oAll && !(sProp in oValidity)) {
+				oValidity[sProp] = oAll[sProp];
+			}
+		});
+		return {
+			ConditionTable: oRow.tableNo || S4_DEFAULT_TABLE,
 			ConditionApplication: S4_APPLICATION,
 			ConditionType: oRow.conditionType,
-			ConditionRateValue: String(oRow.rate).trim(),
-			ConditionRateValueUnit: sKind === "percent" ? PERCENT : oRow.rateUnit
+			ConditionRateValue: _s4Rate(oRow.rate),
+			ConditionRateValueUnit: bPercent ? PERCENT : oRow.rateUnit,
+			ConditionCurrency: (!bPercent && oRow.rateUnit) || S4_DEFAULT_CURRENCY,
+			ConditionQuantity: (bPrice && String(oRow.pricingUnit || "").trim()) || S4_DEFAULT_QUANTITY,
+			ConditionQuantityUnit: (bPrice && oRow.uom) || S4_DEFAULT_QUANTITY_UNIT,
+			to_SlsPrcgCndnRecdValidity: [oValidity]
 		};
-		if (oRow.tableNo) {
-			o.ConditionTable = oRow.tableNo;
-		}
-		if (sKind !== "percent") {
-			o.ConditionCurrency = oRow.rateUnit;
-		}
-		if (sKind === "price") {
-			o.ConditionQuantity = String(oRow.pricingUnit).trim();
-			o.ConditionQuantityUnit = oRow.uom;
-		}
-		o.to_SlsPrcgCndnRecdValidity = [oValidity];
-		return o;
 	}
 
-	// Same condition key = same type, combination, sales area and key field values.
-	function _sameKey(a, b) {
-		if (a.conditionType !== b.conditionType || a.combination !== b.combination ||
-			a.campaignId !== b.campaignId || a.salesOrg !== b.salesOrg || a.distChannel !== b.distChannel) {
-			return false;
-		}
-		return fieldsOf(a.combination).every(function (f) { return a[f] === b[f]; });
-	}
-
-	function _overlaps(a, b) {
-		return a.validFrom && a.validTo && b.validFrom && b.validTo &&
-			a.validFrom <= b.validTo && b.validFrom <= a.validTo;
-	}
-
-	// §12 row validation. aOthers: the campaign's other rows, for the overlap check (§13: rejected here).
+	// §12 row validation (field checks only; overlapping validity is checked by the backend).
 	function validateRow(oRow, aOthers) {
 		var aMsg = [];
 		var oType = _mTypes[oRow.conditionType];
@@ -913,15 +916,6 @@ sap.ui.define([
 			}
 			if (!oRow.uom) {
 				aMsg.push(_err("Unit of measure is mandatory.", "uom"));
-			}
-		}
-		if (!aMsg.length) {
-			var oClash = (aOthers || []).find(function (o) {
-				return o.rowId !== oRow.rowId && _sameKey(o, oRow) && _overlaps(o, oRow);
-			});
-			if (oClash) {
-				aMsg.push(_err("Validity overlaps " + (oClash.recordNo ? "condition record " + oClash.recordNo :
-					"draft record") + " with the same condition key.", "validFrom"));
 			}
 		}
 		return aMsg;
