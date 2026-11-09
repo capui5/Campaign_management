@@ -61,6 +61,22 @@ sap.ui.define([], function () {
 
 	// ---------------------------------------------------------------- transport
 
+	// An HTML page instead of JSON: the approuter / IdP login page after the session expired, or a
+	// gateway / proxy error page. Reported as a readable message instead of a JSON parse error.
+	function _isHtml(oResponse, sText) {
+		var sType = (oResponse.headers.get("Content-Type") || "").toLowerCase();
+		return sType.indexOf("text/html") !== -1 || /^\s*</.test(sText || "");
+	}
+
+	function _htmlError(oResponse) {
+		var bLogin = oResponse.ok || oResponse.status === 401 || oResponse.redirected;
+		return _throw(_err(bLogin ?
+			"Your session has expired or you are not logged in. Reload the page (F5) and try again." :
+			"The campaign pricing service returned an error page (" + oResponse.status + " " +
+			(oResponse.statusText || "") + ") instead of data. Check the destination / backend and try again."),
+			oResponse.status);
+	}
+
 	function _base() {
 		if (!_sBase) {
 			throw _throw(_err("The campaign pricing service is not initialized."));
@@ -86,7 +102,11 @@ sap.ui.define([], function () {
 				headers: { "X-CSRF-Token": "Fetch", Accept: "application/json" },
 				credentials: "same-origin"
 			}).then(function (oResponse) {
-				return oResponse.headers.get("X-CSRF-Token") || "";
+				var sToken = oResponse.headers.get("X-CSRF-Token") || "";
+				if (!sToken) {
+					_pToken = null;
+				}
+				return sToken;
 			}).catch(function () {
 				_pToken = null;
 				return "";
@@ -127,10 +147,21 @@ sap.ui.define([], function () {
 				return _request(sMethod, sPath, mQuery, oBody, true);
 			}
 			return oResponse.text().then(function (sText) {
+				if (sText && _isHtml(oResponse, sText)) {
+					throw _htmlError(oResponse);
+				}
 				if (!oResponse.ok) {
 					throw _fromResponse(oResponse, sText);
 				}
-				return sText ? JSON.parse(sText) : null;
+				if (!sText) {
+					return null;
+				}
+				try {
+					return JSON.parse(sText);
+				} catch (e) {
+					throw _throw(_err("The campaign pricing service returned an unreadable response (" +
+						oResponse.status + "). Reload the page and try again."), oResponse.status);
+				}
 			});
 		}, function (oError) {
 			// network failure / destination not reachable

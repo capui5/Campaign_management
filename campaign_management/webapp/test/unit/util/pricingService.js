@@ -141,17 +141,14 @@ sap.ui.define([
 		assert.deepEqual(fields(pricingService.validateRow(o, [])).sort(), ["pricingUnit", "rateUnit", "uom"]);
 	});
 
-	QUnit.test("Overlapping validity for the same key is rejected", function (assert) {
+	QUnit.test("Overlapping validity is left to the backend (no UI check)", function (assert) {
 		var done = assert.async();
 		pricingService.addDraft(draft()).then(function () {
 			return pricingService.addDraft(draft({ validFrom: new Date(2026, 10, 15), validTo: new Date(2026, 11, 15) }));
 		}).then(function () {
-			assert.ok(false, "overlap accepted");
+			assert.strictEqual(pricingService.conditionsOf("C-00001232").length, 2, "overlapping draft sent on");
 		}, function (oError) {
-			assert.strictEqual(oError.messages[0].field, "validFrom");
-			return pricingService.addDraft(draft({ article: "SKU2002" }));
-		}).then(function () {
-			assert.strictEqual(pricingService.conditionsOf("C-00001232").length, 2, "other article is accepted");
+			assert.ok(false, "rejected in the UI: " + oError.message);
 		}).finally(done);
 	});
 

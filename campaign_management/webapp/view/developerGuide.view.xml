@@ -87,12 +87,29 @@
                                 <Text text="{i18n>Guide_Svc_Pricing}" />
                             </ColumnListItem>
                             <ColumnListItem>
-                                <Text text="ZUI_CAMP_VALUEHELP" class="campCode" />
+                                <Text text="/luxasia/oDataV4/SalesOrganizations, BrandsMaster, Customers, Articles, Currencies, UnitsOfMeasure" class="campCode" />
                                 <Text text="GET" />
                                 <Text text="{i18n>Guide_Svc_ValueHelp}" />
                             </ColumnListItem>
+                            <ColumnListItem>
+                                <Text text="API_SLSPRICINGCONDITIONRECORD_SRV/A_SlsPrcgConditionRecord" class="campCode" />
+                                <Text text="POST" />
+                                <Text text="{i18n>Guide_Svc_S4Pricing}" />
+                            </ColumnListItem>
                         </items>
                     </Table>
+                </VBox>
+
+                <!-- Save to S/4 payload -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Guide_Payload}" titleStyle="H5" class="campCardTitle" />
+                    <Text text="{i18n>Guide_Payload_Text}" class="campGuideCheck" />
+                </VBox>
+
+                <!-- Error handling -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Guide_Errors}" titleStyle="H5" class="campCardTitle" />
+                    <Text text="{i18n>Guide_Errors_Text}" class="campGuideCheck" />
                 </VBox>
 
                 <!-- Developer checkpoints -->
