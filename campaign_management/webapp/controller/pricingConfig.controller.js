@@ -173,16 +173,14 @@ sap.ui.define([
         onSave: function () {
             var that = this;
             var oModel = this._model();
-            var aWarnings = pricingService.validateConfigs().filter(function (m) { return m.type === "Warning"; });
             oModel.setProperty("/busy", true);
             pricingService.saveConfigs().then(function (o) {
                 if (!o.saved && !o.failed) {
                     MessageBox.information(that._i18n("Config_No_Changes"));
                 } else if (o.failed) {
-                    MessageBox.error(that._i18n("Config_Save_Partial", [o.saved, o.failed]) + "\n" + o.messages.join("\n"));
+                    MessageBox.error(o.messages.join("\n"));
                 } else {
-                    MessageBox.success(that._i18n("Config_Save_Ok", [o.saved]) +
-                        (aWarnings.length ? "\n" + aWarnings.map(function (m) { return m.text; }).join("\n") : ""));
+                    MessageBox.success(that._i18n("Config_Save_Ok"));
                 }
             }).catch(function (oError) {
                 MessageBox.error((oError.messages || [{ text: oError.message }]).map(function (m) { return m.text; }).join("\n"));

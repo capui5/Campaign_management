@@ -1417,7 +1417,7 @@ sap.ui.define([
 						iSaved += 1;
 					}, function (oError) {
 						c.validation = VALIDATION.FAILED;
-						aFailed.push(c.conditionType + " " + c.combination + ": " + oError.message);
+						aFailed.push(oError.message);
 					});
 				});
 			}, Promise.resolve()).then(function () {
