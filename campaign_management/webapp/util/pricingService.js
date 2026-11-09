@@ -61,7 +61,6 @@ sap.ui.define([
 	var S4_APPLICATION = "V"; // sales
 	// Header defaults of the S/4 deep insert, used when the row does not carry its own value
 	// (no configured condition table, percentage types without currency / quantity).
-	var S4_DEFAULT_TABLE = "949";
 	var S4_DEFAULT_CURRENCY = "EUR";
 	var S4_DEFAULT_QUANTITY = "1";
 	var S4_DEFAULT_QUANTITY_UNIT = "PC";
@@ -592,6 +591,23 @@ sap.ui.define([
 		return _oModel.getProperty("/configs") || [];
 	}
 
+	// Current CONDITION_TABLE_NUMBER of every ConditionTypeKeyCombinations row, read fresh from CAP
+	// for Save to S/4, keyed "<CONDITION_CODE>|<COMBINATION_CODE>" ("" when not maintained / "TBD").
+	function _loadTableNumbers() {
+		return capService.list(TYPE_COMB_SET, { $expand: "CONDITION_TYPE,KEY_COMBINATION" }).then(function (aRows) {
+			var mTables = {};
+			aRows.forEach(function (r) {
+				var sType = String((r.CONDITION_TYPE || {}).CONDITION_CODE || "").trim().toUpperCase();
+				var sComb = (r.KEY_COMBINATION || {}).COMBINATION_CODE;
+				if (sType && sComb) {
+					var sTable = String(r.CONDITION_TABLE_NUMBER || "").trim();
+					mTables[sType + "|" + sComb] = sTable === "TBD" ? "" : sTable;
+				}
+			});
+			return mTables;
+		});
+	}
+
 	function typeInfo(sType) {
 		return _mTypes[sType] || null;
 	}
@@ -829,7 +845,7 @@ sap.ui.define([
 			}
 		});
 		return {
-			ConditionTable: oRow.tableNo || S4_DEFAULT_TABLE,
+			ConditionTable: oRow.tableNo || "",
 			ConditionApplication: S4_APPLICATION,
 			ConditionType: oRow.conditionType,
 			ConditionRateValue: _s4Rate(oRow.rate),
@@ -1328,14 +1344,25 @@ sap.ui.define([
 					") cannot be reached. Nothing was posted to S/4; " + (_mAvailable.records ?
 					"the records stay stored with status Draft." : "the draft rows are kept in this session."))));
 			}
-			var aPost = [];
-			aValid.forEach(function (oRow) {
-				// No UI block on the condition table: the configured number, else the record's own
-				// CONDITION_TABLE_NUMBER; S/4 decides and its answer is stored (POSTED / FAILED).
-				var oCfg = getConfig(oRow.conditionType, oRow.combination);
-				oRow.tableNo = (oCfg && oCfg.tableNo) || oRow.tableNo || "";
-				aPost.push(oRow);
+			var aPost = aValid;
+			// ConditionTable = CONDITION_TABLE_NUMBER of the row's ConditionTypeKeyCombinations entry,
+			// read fresh so a number changed in the configuration since the page was opened is used.
+			// No UI block on the condition table: S/4 decides and its answer is stored (POSTED / FAILED).
+			return _loadTableNumbers().catch(function () {
+				return null; // CAP not readable: use the configuration read at start-up
+			}).then(function (mTables) {
+				aPost.forEach(function (oRow) {
+					var sKey = oRow.conditionType + "|" + oRow.combination;
+					if (mTables && sKey in mTables) {
+						oRow.tableNo = mTables[sKey];
+					} else {
+						var oCfg = getConfig(oRow.conditionType, oRow.combination);
+						oRow.tableNo = (oCfg && oCfg.tableNo) || oRow.tableNo || "";
+					}
+				});
+				return _postAll(aPost);
 			});
+			function _postAll(aPost) {
 			return Promise.allSettled(aPost.map(function (oRow) {
 				return _postToS4(oRow).then(function (sRecordNo) {
 					return _storeResult(oRow, true, sRecordNo, "");
@@ -1365,6 +1392,7 @@ sap.ui.define([
 					messages: aErrors.concat(aFailed)
 				};
 			});
+			}
 		},
 
 		// Value help lists from the CAP backend (SalesOrganizations, BrandsMaster, Customers, Articles,
