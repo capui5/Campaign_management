@@ -106,6 +106,12 @@
                     <Text text="{i18n>Guide_Payload_Text}" class="campGuideCheck" />
                 </VBox>
 
+                <!-- Record edit flow -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Guide_Edit}" titleStyle="H5" class="campCardTitle" />
+                    <Text text="{i18n>Guide_Edit_Text}" class="campGuideCheck" />
+                </VBox>
+
                 <!-- Error handling -->
                 <VBox class="campCard">
                     <Title text="{i18n>Guide_Errors}" titleStyle="H5" class="campCardTitle" />
