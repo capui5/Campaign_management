@@ -168,7 +168,8 @@
                     <HBox justifyContent="End" class="sapUiSmallMarginTop">
                         <Button text="{i18n>Pricing_Config_View}" press="onOpenConfig" />
                         <Button text="{i18n>Pricing_Clear}" press="onClearDraft" class="sapUiTinyMarginBegin" />
-                        <Button text="{i18n>Pricing_Add_Draft}" icon="sap-icon://add" type="Emphasized" press="onAddDraft"
+                        <Button text="{= ${pricing>/editRowId} ? ${i18n>Pricing_Update_Draft} : ${i18n>Pricing_Add_Draft} }"
+                            icon="{= ${pricing>/editRowId} ? 'sap-icon://save' : 'sap-icon://add' }" type="Emphasized" press="onAddDraft"
                             class="sapUiTinyMarginBegin" enabled="{= ${pricing>/combinations}.length > 0 }" />
                     </HBox>
                 </VBox>

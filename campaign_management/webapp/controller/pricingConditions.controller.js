@@ -73,6 +73,7 @@ sap.ui.define([
                 combinations: [],
                 combinationIndex: -1,
                 draft: {},
+                editRowId: "",
                 kind: "percent",
                 rateLabel: "",
                 fields: { customer: false, article: false, brand: false },
@@ -296,7 +297,12 @@ sap.ui.define([
         onRecordPress: function (oEvent) {
             var oRow = oEvent.getSource().getBindingContext("PricingModel").getObject();
             if (this._fillFromRecord(oRow)) {
-                MessageToast.show(this._i18n("Pricing_Record_Loaded", [oRow.conditionType, oRow.combination]));
+                // Not yet posted records are changed in place (PATCH) by the next Add Draft; a posted
+                // record only serves as a template for a new one.
+                var bEdit = oRow.status !== pricingService.STATUS.POSTED;
+                this._model().setProperty("/editRowId", bEdit ? oRow.rowId : "");
+                MessageToast.show(this._i18n(bEdit ? "Pricing_Record_Edit" : "Pricing_Record_Loaded",
+                    [oRow.conditionType, oRow.combination]));
                 this.byId("pricingConditionsPage").scrollTo(0, 200);
             }
         },
@@ -498,6 +504,11 @@ sap.ui.define([
             var oModel = this._model();
             oModel.setProperty("/busy", true);
             var aDrafts = this._expandDraft(oModel.getProperty("/draft"));
+            var sEditId = oModel.getProperty("/editRowId");
+            if (sEditId) {
+                this._updateDraft(sEditId, aDrafts);
+                return;
+            }
             if (aDrafts.length > MAX_DRAFTS) {
                 oModel.setProperty("/busy", false);
                 MessageBox.error(this._i18n("Pricing_Too_Many_Drafts", [aDrafts.length, MAX_DRAFTS]));
@@ -519,8 +530,31 @@ sap.ui.define([
             });
         },
 
+        // The record loaded from the table is changed with PATCH; one value per key field.
+        _updateDraft: function (sRowId, aDrafts) {
+            var that = this;
+            var oModel = this._model();
+            if (aDrafts.length !== 1) {
+                oModel.setProperty("/busy", false);
+                MessageBox.error(this._i18n("Pricing_Edit_One_Value"));
+                return;
+            }
+            pricingService.updateDraft(sRowId, aDrafts[0]).then(function (oRow) {
+                that._filterRecords(oModel.getProperty("/campaignId"));
+                oModel.setProperty("/editRowId", "");
+                oModel.setProperty("/draft", that._blankDetails(oModel.getProperty("/draft")));
+                that._clearStates();
+                MessageToast.show(that._i18n("Pricing_Draft_Updated", [oRow.conditionType, oRow.combination]));
+            }).catch(function (oError) {
+                that._showMessages(oError.messages || [{ text: oError.message }]);
+            }).finally(function () {
+                oModel.setProperty("/busy", false);
+            });
+        },
+
         onClearDraft: function () {
             var oModel = this._model();
+            oModel.setProperty("/editRowId", "");
             oModel.setProperty("/draft", this._blankDetails(oModel.getProperty("/draft")));
             this._clearStates();
         },
@@ -543,6 +577,9 @@ sap.ui.define([
                     }
                     oModel.setProperty("/busy", true);
                     pricingService.removeDraft(oRow.rowId).then(function () {
+                        if (oModel.getProperty("/editRowId") === oRow.rowId) {
+                            oModel.setProperty("/editRowId", "");
+                        }
                         that._filterRecords(oModel.getProperty("/campaignId"));
                         MessageToast.show(that._i18n("Pricing_Removed"));
                     }).catch(function (oError) {

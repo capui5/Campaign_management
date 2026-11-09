@@ -152,6 +152,18 @@ sap.ui.define([
 		}).finally(done);
 	});
 
+	QUnit.test("A loaded draft is changed in place, not added again", function (assert) {
+		var done = assert.async();
+		pricingService.addDraft(draft()).then(function (oRow) {
+			return pricingService.updateDraft(oRow.rowId, draft({ rate: "15" })).then(function (oNew) {
+				var aRows = pricingService.conditionsOf("C-00001232");
+				assert.strictEqual(aRows.length, 1, "no second record");
+				assert.strictEqual(oNew.rowId, oRow.rowId, "same record");
+				assert.strictEqual(aRows[0].rate, "15", "changed value");
+			});
+		}).finally(done);
+	});
+
 	QUnit.test("Inactive combinations are not offered", function (assert) {
 		pricingService.getConfig("ZPWP", "KC02").active = false;
 		assert.strictEqual(pricingService.combinationsFor("ZPWP").indexOf("KC02"), -1);

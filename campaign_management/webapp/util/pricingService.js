@@ -1211,6 +1211,48 @@ sap.ui.define([
 			});
 		},
 
+		// Changes an existing, not yet posted record (API §5.3: PATCH CampaignPricingRecords('<ID>')).
+		// The record goes back to DRAFT (a failed one loses its error message) and keeps its ID.
+		updateDraft: function (sRowId, oDraft) {
+			var oOld = _rows().find(function (o) { return o.rowId === sRowId; });
+			if (!oOld) {
+				return Promise.reject(_throw(_err("The record to change is no longer in the list. Reload the page.")));
+			}
+			if (oOld.status === STATUS.POSTED) {
+				return Promise.reject(_throw(_err("Posted records cannot be changed.")));
+			}
+			var oRow = Object.assign(_normalize(oDraft), { rowId: sRowId, campaignId: oOld.campaignId });
+			var aMsg = validateRow(oRow, []);
+			if (aMsg.length) {
+				return Promise.reject(_throw(aMsg));
+			}
+			var oCfg = getConfig(oRow.conditionType, oRow.combination);
+			oRow.tableNo = (oCfg && oCfg.tableNo) || "";
+			oRow.recordNo = "";
+			function replace(oNew) {
+				_setRows(_rows().map(function (o) { return o.rowId === sRowId ? oNew : o; }));
+				return oNew;
+			}
+			if (!oOld.persisted) {
+				oRow.persisted = false;
+				oRow.deletable = true;
+				_setStatus(oRow, STATUS.DRAFT);
+				return Promise.resolve(replace(oRow));
+			}
+			var oPayload = _recordPayload(oRow);
+			delete oPayload[FIELD.rowId];
+			delete oPayload[FIELD.campaignId];
+			return capService.update(_recordPath(sRowId), oPayload).then(function (oData) {
+				var oBase = Object.assign({}, oPayload);
+				oBase[FIELD.rowId] = sRowId;
+				oBase[FIELD.campaignId] = oOld.campaignId;
+				var oNew = _rowFromBackend(Object.assign(oBase, oData || {}));
+				oNew.createdBy = oNew.createdBy || oOld.createdBy;
+				oNew.createdOn = oNew.createdOn || oOld.createdOn;
+				return replace(oNew);
+			});
+		},
+
 		// Several drafts at once (multi-select key fields: one row per combination of the picked
 		// values). All rows are validated first, against the campaign's records and each other; when
 		// any row is invalid nothing is stored. Otherwise they are stored one by one like addDraft.
