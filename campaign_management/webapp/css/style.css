@@ -271,3 +271,96 @@
 .campOverviewActions {
     margin-top: 1.25rem;
 }
+
+/* Campaign list table: card look, two-line cells, status pills */
+.campTable.sapMList {
+    margin: 0.5rem 0 0;
+    border: 1px solid var(--sapTile_BorderColor, #dce3eb);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: var(--sapTile_Background, #fff);
+    box-shadow: var(--sapContent_Shadow0, 0 2px 8px rgba(23, 54, 83, 0.04));
+}
+.campTable .campTableToolbar.sapMTB {
+    height: 3.25rem;
+    padding: 0 1rem;
+    border-bottom: 1px solid var(--sapList_BorderColor, #e5e9ee);
+}
+.campTableCount.sapMText {
+    margin-left: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--sapContent_LabelColor, #667789);
+}
+.campTable .sapMListTblHeader .sapMListTblCell .sapMText {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--sapContent_LabelColor, #667789);
+}
+.campTable .sapMListTblCell {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+.campTable .sapMLIB.sapMListTblRow:hover {
+    background: var(--sapList_Hover_Background, #f5f8fb);
+}
+.campCellId.sapMText {
+    font-weight: 600;
+    color: var(--sapLinkColor, #0064d9);
+}
+.campCellSub.sapMText {
+    margin-top: 0.125rem;
+    font-size: 0.8125rem;
+    color: var(--sapContent_LabelColor, #667789);
+}
+.campCountryBadge.sapMText {
+    min-width: 1.75rem;
+    padding: 0.125rem 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 0.25rem;
+    background: var(--sapNeutralBackground, #eff1f2);
+    color: var(--sapNeutralTextColor, #475e75);
+}
+
+/* Status pill: soft background, coloured icon and text, same size in every row */
+.campStatusPill.sapMFlexBox {
+    display: inline-flex;
+    width: auto;
+    padding: 0.25rem 0.75rem 0.25rem 0.5rem;
+    border-radius: 1rem;
+    border: 1px solid transparent;
+    background: var(--sapNeutralBackground, #eff1f2);
+    color: var(--sapNeutralTextColor, #475e75);
+}
+.campStatusIcon.sapUiIcon {
+    margin-right: 0.375rem;
+    font-size: 0.8125rem;
+    color: inherit;
+}
+.campStatusPill .campStatusText.sapMText {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: inherit;
+}
+.campStatusPill[data-status="Active"] {
+    background: var(--sapSuccessBackground, #f5fae5);
+    border-color: var(--sapSuccessBorderColor, #36a41d);
+    color: var(--sapPositiveTextColor, #256f3a);
+}
+.campStatusPill[data-status="Upcoming"] {
+    background: var(--sapInformationBackground, #e1f4ff);
+    border-color: var(--sapInformationBorderColor, #0070f2);
+    color: var(--sapInformativeTextColor, #0064d9);
+}
+.campStatusPill[data-status="Expired"] {
+    background: var(--sapErrorBackground, #ffeaf4);
+    border-color: var(--sapErrorBorderColor, #e90b0b);
+    color: var(--sapNegativeTextColor, #aa0808);
+}
+.campStatusPill[data-status="NoPricing"] {
+    border-color: var(--sapNeutralBorderColor, #788fa6);
+    border-style: dashed;
+}

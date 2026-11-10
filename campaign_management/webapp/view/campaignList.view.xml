@@ -66,42 +66,71 @@
                     <IconTabFilter key="Active" icon="sap-icon://complete" text="{i18n>Camp_Tab_Active}" count="{view>/counts/Active}" iconColor="Positive" />
                     <IconTabFilter key="Upcoming" icon="sap-icon://future" text="{i18n>Camp_Tab_Upcoming}" count="{view>/counts/Upcoming}" iconColor="Neutral" />
                     <IconTabFilter key="Expired" icon="sap-icon://past" text="{i18n>Camp_Tab_Expired}" count="{view>/counts/Expired}" iconColor="Negative" />
+                    <IconTabFilter key="No Pricing" icon="sap-icon://lead" text="{i18n>Camp_Tab_NoPricing}" count="{view>/counts/NoPricing}" iconColor="Default" />
                 </items>
                 <content>
                     <Table id="campTable"
+                        class="campTable"
                         inset="false"
+                        alternateRowColors="true"
+                        popinLayout="GridSmall"
                         sticky="HeaderToolbar,ColumnHeaders"
                         noDataText="{view>/noDataText}"
                         busy="{view>/busy}"
                         items="{path: 'CampModel>/campaigns'}">
                         <headerToolbar>
-                            <OverflowToolbar>
-                                <Title text="{i18n>Camp_Campaigns} ({view>/shown} / {CampModel>/total})" />
+                            <OverflowToolbar class="campTableToolbar">
+                                <Title text="{i18n>Camp_Campaigns}" titleStyle="H5" />
+                                <Text text="{i18n>Camp_Shown_Of} {view>/shown} / {CampModel>/total}" class="campTableCount" />
                                 <ToolbarSpacer />
                                 <Button text="{i18n>Camp_Create}" icon="sap-icon://add" type="Emphasized" press="onCreate" />
                             </OverflowToolbar>
                         </headerToolbar>
                         <columns>
-                            <Column><Text text="{i18n>Camp_Id}" /></Column>
+                            <Column width="26%"><Text text="{i18n>Camp_Campaign}" /></Column>
                             <Column minScreenWidth="Tablet" demandPopin="true"><Text text="{i18n>Camp_Country}" /></Column>
-                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Camp_Created_On}" /></Column>
-                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Camp_Created_By}" /></Column>
-                            <Column><Text text="{i18n>Camp_Status}" /></Column>
-                            <!-- Wide enough for Display / Change / Pricing, so no button is cut off -->
-                            <Column hAlign="End" width="22rem"><Text text="" /></Column>
+                            <Column minScreenWidth="Desktop" demandPopin="true"><Text text="{i18n>Camp_Created}" /></Column>
+                            <Column minScreenWidth="Tablet" demandPopin="true" width="14rem"><Text text="{i18n>Camp_Pricing_Validity}" /></Column>
+                            <Column width="9.5rem"><Text text="{i18n>Camp_Status}" /></Column>
+                            <Column hAlign="End" width="12rem"><Text text="{i18n>Camp_Actions}" /></Column>
                         </columns>
                         <items>
-                            <ColumnListItem type="Inactive">
+                            <ColumnListItem type="Inactive" vAlign="Middle">
                                 <cells>
-                                    <ObjectIdentifier title="{CampModel>id}" text="{CampModel>description}" />
-                                    <Text text="{CampModel>countryName} ({CampModel>country})" />
-                                    <Text text="{path: 'CampModel>createdOn', formatter: '.formatDate'}" />
-                                    <Text text="{CampModel>createdBy}" />
-                                    <ObjectStatus text="{CampModel>status}" state="{CampModel>statusState}" inverted="true" />
-                                    <HBox justifyContent="End">
-                                        <Button text="{i18n>Camp_Display}" icon="sap-icon://show" press="onDisplay" />
-                                        <Button text="{i18n>Camp_Change}" icon="sap-icon://edit" type="Emphasized" press="onChange" class="sapUiTinyMarginBegin" />
-                                        <Button text="{i18n>Camp_Pricing}" icon="sap-icon://lead" press="onPricing" class="sapUiTinyMarginBegin" />
+                                    <!-- Campaign: ID on top, description below -->
+                                    <VBox>
+                                        <Text text="{CampModel>id}" class="campCellId" />
+                                        <Text text="{CampModel>description}" class="campCellSub" wrapping="true" />
+                                    </VBox>
+                                    <!-- Country: code badge + name -->
+                                    <HBox alignItems="Center">
+                                        <Text text="{CampModel>country}" class="campCountryBadge" />
+                                        <Text text="{CampModel>countryName}" class="sapUiTinyMarginBegin" />
+                                    </HBox>
+                                    <!-- Created: date + user -->
+                                    <VBox>
+                                        <Text text="{path: 'CampModel>createdOn', formatter: '.formatDate'}" />
+                                        <Text text="{path: 'CampModel>createdBy', formatter: '.formatCreatedBy'}" class="campCellSub" />
+                                    </VBox>
+                                    <!-- Pricing validity: date range, hint below (same layout as the other cells) -->
+                                    <VBox>
+                                        <Text text="{parts: ['CampModel>pricingFrom', 'CampModel>pricingTo', 'CampModel>pricingCount'], formatter: '.formatPricingValidity'}"
+                                            visible="{= ${CampModel>pricingCount} > 0 }" wrapping="false" />
+                                        <Text text="{parts: ['CampModel>status', 'CampModel>pricingTo', 'CampModel>pricingNextFrom', 'CampModel>pricingCount'], formatter: '.formatValidityHint'}"
+                                            class="campCellSub" />
+                                    </VBox>
+                                    <!-- Status pill: coloured by status through the data-status attribute (style.css) -->
+                                    <HBox alignItems="Center" class="campStatusPill">
+                                        <customData>
+                                            <core:CustomData key="status" value="{path: 'CampModel>status', formatter: '.formatStatusKey'}" writeToDom="true" />
+                                        </customData>
+                                        <core:Icon src="{path: 'CampModel>status', formatter: '.formatStatusIcon'}" class="campStatusIcon" />
+                                        <Text text="{CampModel>status}" class="campStatusText" wrapping="false" />
+                                    </HBox>
+                                    <HBox justifyContent="End" alignItems="Center">
+                                        <Button icon="sap-icon://show" type="Transparent" tooltip="{i18n>Camp_Display}" press="onDisplay" />
+                                        <Button icon="sap-icon://edit" type="Transparent" tooltip="{i18n>Camp_Change}" press="onChange" />
+                                        <Button text="{i18n>Camp_Pricing}" icon="sap-icon://lead" type="Ghost" press="onPricing" class="sapUiTinyMarginBegin" />
                                     </HBox>
                                 </cells>
                             </ColumnListItem>

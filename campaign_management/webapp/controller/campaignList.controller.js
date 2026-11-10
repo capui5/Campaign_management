@@ -20,6 +20,75 @@ sap.ui.define([
             return oDate ? DateFormat.getDateInstance({ pattern: "dd-MM-yyyy" }).format(oDate) : "";
         },
 
+        // Overall validity of the campaign's pricing conditions: earliest Valid From - latest Valid To,
+        // e.g. "01 Nov 2026 – 30 Nov 2026".
+        formatPricingValidity: function (oFrom, oTo, iCount) {
+            if (!iCount) {
+                return "";
+            }
+            var oFmt = DateFormat.getDateInstance({ pattern: "dd MMM yyyy" });
+            var sTo = oTo ? oFmt.format(oTo) : this._i18n("Camp_Open_Ended");
+            return (oFrom ? oFmt.format(oFrom) : "…") + " – " + sTo;
+        },
+
+        // "Ends in 20 days · 3 conditions", "Starts tomorrow · 1 condition", "Ended 41 days ago · ...".
+        formatValidityHint: function (sStatus, oTo, oNextFrom, iCount) {
+            if (iCount === null || iCount === undefined) {
+                return "";
+            }
+            if (!iCount) {
+                return this._i18n("Camp_No_Conditions");
+            }
+            var sWhen = "";
+            if (sStatus === "Active") {
+                sWhen = oTo ? this._i18n("Camp_Ends", [this._relDays(oTo)]) : this._i18n("Camp_No_End");
+            } else if (sStatus === "Upcoming" && oNextFrom) {
+                sWhen = this._i18n("Camp_Starts", [this._relDays(oNextFrom)]);
+            } else if (sStatus === "Expired" && oTo) {
+                sWhen = this._i18n("Camp_Ended", [this._relDays(oTo)]);
+            }
+            var sCount = this._i18n(iCount === 1 ? "Camp_Condition_One" : "Camp_Condition_Many", [iCount]);
+            return sWhen ? sWhen + " · " + sCount : sCount;
+        },
+
+        _today: function () {
+            var oToday = new Date();
+            oToday.setHours(0, 0, 0, 0);
+            return oToday;
+        },
+
+        // "today", "tomorrow", "yesterday", "in 5 days", "5 days ago".
+        _relDays: function (oDate) {
+            var iDays = Math.round((oDate - this._today()) / 86400000);
+            if (iDays === 0) {
+                return this._i18n("Camp_Rel_Today");
+            }
+            if (iDays === 1) {
+                return this._i18n("Camp_Rel_Tomorrow");
+            }
+            if (iDays === -1) {
+                return this._i18n("Camp_Rel_Yesterday");
+            }
+            return this._i18n(iDays > 0 ? "Camp_Rel_In" : "Camp_Rel_Ago", [Math.abs(iDays)]);
+        },
+
+        formatStatusKey: function (sStatus) {
+            return (sStatus || "").replace(/\s/g, "");
+        },
+
+        formatCreatedBy: function (sUser) {
+            return sUser ? this._i18n("Camp_By", [sUser]) : "";
+        },
+
+        formatStatusIcon: function (sStatus) {
+            return {
+                "Active": "sap-icon://sys-enter-2",
+                "Upcoming": "sap-icon://future",
+                "Expired": "sap-icon://history",
+                "No Pricing": "sap-icon://less"
+            }[sStatus] || "";
+        },
+
         onInit: function () {
             this.getView().setModel(new JSONModel({ busy: false, shown: 0, noDataText: "", tab: "all", counts: {} }), "view");
             this.getOwnerComponent().getRouter().getRoute("campaignList").attachPatternMatched(this._onRouteMatched, this);
@@ -61,12 +130,15 @@ sap.ui.define([
             });
         },
 
+        // Status comes from the validity of each campaign's pricing conditions (campaignService).
         // Counts of the loaded campaigns (20 per page, API §4.1) for the status tabs.
         _showCampaigns: function (aCampaigns) {
             var oViewModel = this.getView().getModel("view");
-            var mCounts = { all: aCampaigns.length, Active: 0, Upcoming: 0, Expired: 0 };
+            // Keys without spaces ("No Pricing" -> NoPricing) so the view can bind them.
+            var mCounts = { all: aCampaigns.length, Active: 0, Upcoming: 0, Expired: 0, NoPricing: 0 };
             aCampaigns.forEach(function (c) {
-                mCounts[c.status] = (mCounts[c.status] || 0) + 1;
+                var sKey = c.status.replace(/\s/g, "");
+                mCounts[sKey] = (mCounts[sKey] || 0) + 1;
             });
             oViewModel.setProperty("/counts", mCounts);
             oViewModel.setProperty("/noDataText", this._i18n("Camp_No_Data"));

@@ -38,6 +38,8 @@ sap.ui.define([
 
 	var CAMPAIGN_SET = "/CampaignsdSet";   // S/4 create / change
 	var CAP_CAMPAIGNS = "Campaigns";       // CAP read
+	var CAP_RECORDS = "CampaignPricingRecords"; // pricing conditions: validity drives the status
+	var RECORD_CHUNK = 20; // campaign IDs per CampaignPricingRecords request (keeps the URL short)
 	var PAGE_SIZE = 20; // API §4.1 $top
 	var ORDER_BY = "Credate desc,CampaignId desc";
 
@@ -63,17 +65,20 @@ sap.ui.define([
 
 	var DESCRIPTION_MAX = 50; // CPNDESC length in the existing Campaign entity
 
-	// Status derived from validity (no status field on the backend).
+	// Status derived from the validity of the campaign's pricing conditions (no status field on the
+	// backend). A campaign without any pricing condition is "No Pricing".
 	var STATUS = {
 		ACTIVE: "Active",
 		UPCOMING: "Upcoming",
-		EXPIRED: "Expired"
+		EXPIRED: "Expired",
+		NO_PRICING: "No Pricing"
 	};
 
 	var STATUS_STATE = {
 		"Active": "Success",
 		"Upcoming": "Information",
-		"Expired": "Error"
+		"Expired": "Error",
+		"No Pricing": "None"
 	};
 
 	var _oComponent = null;
@@ -209,7 +214,8 @@ sap.ui.define([
 		return a && a[1] !== "0000" ? new Date(+a[1], +a[2] - 1, +a[3]) : null;
 	}
 
-	// No validity dates means the campaign is not limited (legacy DATFR / DATTO defaults).
+	// Campaign master validity, used only when the pricing conditions cannot be read. No validity
+	// dates means the campaign is not limited (legacy DATFR / DATTO defaults).
 	function _status(oFrom, oTo) {
 		var oToday = new Date();
 		oToday.setHours(0, 0, 0, 0);
@@ -243,6 +249,10 @@ sap.ui.define([
 			changedBy: "",
 			validFrom: oFrom,
 			validTo: oTo,
+			pricingCount: null, // filled by _applyPricingStatus
+			pricingFrom: null,
+			pricingTo: null,
+			pricingNextFrom: null,
 			brand: r[FIELD.brand] || "",
 			loyaltyProgram: r[FIELD.loyaltyProgram] || "",
 			pointsConsumed: r[FIELD.pointsConsumed] !== undefined && r[FIELD.pointsConsumed] !== null ? Number(r[FIELD.pointsConsumed]) : null,
@@ -252,6 +262,92 @@ sap.ui.define([
 			status: sStatus,
 			statusState: STATUS_STATE[sStatus] || "None"
 		};
+	}
+
+	// ---------------------------------------------------------------- status from pricing conditions
+
+	function _today() {
+		var oToday = new Date();
+		oToday.setHours(0, 0, 0, 0);
+		return oToday;
+	}
+
+	// Status from the validity ranges of the campaign's pricing conditions:
+	//   Active      at least one condition is valid today (VALID_FROM <= today <= VALID_TO)
+	//   Upcoming    none valid today, but at least one starts later
+	//   Expired     every condition ended before today
+	//   No Pricing  the campaign has no pricing condition
+	function _pricingStatus(aRanges) {
+		if (!aRanges.length) {
+			return STATUS.NO_PRICING;
+		}
+		var oToday = _today();
+		if (aRanges.some(function (r) { return (!r.from || r.from <= oToday) && (!r.to || r.to >= oToday); })) {
+			return STATUS.ACTIVE;
+		}
+		if (aRanges.some(function (r) { return r.from && r.from > oToday; })) {
+			return STATUS.UPCOMING;
+		}
+		return STATUS.EXPIRED;
+	}
+
+	// CampaignPricingRecords VALID_FROM / VALID_TO (Edm.Date YYYY-MM-DD); 9999-12-31 is open-ended.
+	function _recordDate(v) {
+		var a = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(v || "");
+		return a && a[1] !== "0000" && a[1] !== "9999" ? new Date(+a[1], +a[2] - 1, +a[3]) : null;
+	}
+
+	// Validity ranges of the pricing conditions per campaign ID: { "C-..": [{ from, to }] }.
+	// CampaignPricingRecords?$filter=(CAMPAIGN_ID eq '..' or ...)&$select=CAMPAIGN_ID,VALID_FROM,VALID_TO,
+	// RECORD_CHUNK campaign IDs per request.
+	function _loadPricingRanges(aIds) {
+		var aChunks = [];
+		for (var i = 0; i < aIds.length; i += RECORD_CHUNK) {
+			aChunks.push(aIds.slice(i, i + RECORD_CHUNK));
+		}
+		return Promise.all(aChunks.map(function (aChunk) {
+			return capService.list(CAP_RECORDS, {
+				$filter: "(" + aChunk.map(function (sCampId) { return "CAMPAIGN_ID eq " + capService.literal(sCampId); }).join(" or ") + ")",
+				$select: "ID,CAMPAIGN_ID,VALID_FROM,VALID_TO"
+			});
+		})).then(function (aResults) {
+			var mRanges = {};
+			aIds.forEach(function (sCampId) { mRanges[sCampId] = []; });
+			aResults.forEach(function (aRows) {
+				aRows.forEach(function (r) {
+					if (mRanges[r.CAMPAIGN_ID]) { // a service that ignores the $filter cannot add rows
+						mRanges[r.CAMPAIGN_ID].push({ from: _recordDate(r.VALID_FROM), to: _recordDate(r.VALID_TO) });
+					}
+				});
+			});
+			return mRanges;
+		});
+	}
+
+	// Sets status, statusState and the overall pricing validity (earliest Valid From, latest Valid To)
+	// from the campaigns' pricing conditions. When the records cannot be read, the status from the
+	// campaign master validity stays, so the list still shows.
+	function _applyPricingStatus(aCampaigns) {
+		if (!aCampaigns.length) {
+			return Promise.resolve(aCampaigns);
+		}
+		return _loadPricingRanges(aCampaigns.map(function (c) { return c.id; })).then(function (mRanges) {
+			var oToday = _today();
+			aCampaigns.forEach(function (c) {
+				var aRanges = mRanges[c.id] || [];
+				var bOpenEnd = aRanges.some(function (r) { return !r.to; });
+				c.pricingCount = aRanges.length;
+				c.pricingFrom = aRanges.reduce(function (o, r) { return r.from && (!o || r.from < o) ? r.from : o; }, null);
+				c.pricingTo = bOpenEnd ? null : aRanges.reduce(function (o, r) { return r.to && (!o || r.to > o) ? r.to : o; }, null);
+				// Next condition start after today (an Upcoming campaign may also have expired conditions).
+				c.pricingNextFrom = aRanges.reduce(function (o, r) { return r.from && r.from > oToday && (!o || r.from < o) ? r.from : o; }, null);
+				c.status = _pricingStatus(aRanges);
+				c.statusState = STATUS_STATE[c.status] || "None";
+			});
+			return aCampaigns;
+		}).catch(function () {
+			return aCampaigns;
+		});
 	}
 
 	function _countryName(sLand) {
@@ -370,9 +466,13 @@ sap.ui.define([
 
 	// Reads the next page of oPaging and appends it to /campaigns.
 	function _readPage(oPaging) {
-		return capService.listPage(CAP_CAMPAIGNS, oPaging.query, PAGE_SIZE, oPaging.skip).then(function (oResult) {
+		var oResult;
+		return capService.listPage(CAP_CAMPAIGNS, oPaging.query, PAGE_SIZE, oPaging.skip).then(function (oPage) {
+			oResult = oPage;
 			oPaging.skip += oResult.value.length;
-			var aCampaigns = (_oModel.getProperty("/campaigns") || []).concat(oResult.value.map(_toCampaign).filter(oPaging.matches));
+			return _applyPricingStatus(oResult.value.map(_toCampaign).filter(oPaging.matches));
+		}).then(function (aPage) {
+			var aCampaigns = (_oModel.getProperty("/campaigns") || []).concat(aPage);
 			_oModel.setProperty("/campaigns", aCampaigns);
 			_oModel.setProperty("/total", oResult.count);
 			_oModel.setProperty("/hasMore", oResult.value.length === PAGE_SIZE && oPaging.skip < oResult.count);
@@ -447,7 +547,7 @@ sap.ui.define([
 		listAll: function () {
 			var oPaging = _searchQuery({});
 			return capService.listPaged(CAP_CAMPAIGNS, oPaging.query, PAGE_SIZE).then(function (oResult) {
-				return oResult.value.map(_toCampaign).filter(oPaging.matches);
+				return _applyPricingStatus(oResult.value.map(_toCampaign).filter(oPaging.matches));
 			});
 		},
 
@@ -476,7 +576,7 @@ sap.ui.define([
 				if (!oRow) {
 					throw _throw(_err("Campaign " + sId + " not found."));
 				}
-				return _toCampaign(oRow);
+				return _applyPricingStatus([_toCampaign(oRow)]).then(function (a) { return a[0]; });
 			});
 		},
 
@@ -492,7 +592,12 @@ sap.ui.define([
 				if (!oData[FIELD.id]) {
 					throw _throw(_err("The campaign was not created: no campaign ID was returned."));
 				}
-				return _toCampaign(oData);
+				// A new campaign has no pricing conditions yet.
+				return Object.assign(_toCampaign(oData), {
+					pricingCount: 0,
+					status: STATUS.NO_PRICING,
+					statusState: STATUS_STATE[STATUS.NO_PRICING]
+				});
 			});
 		},
 
