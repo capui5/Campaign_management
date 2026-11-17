@@ -261,6 +261,7 @@ sap.ui.define([
 	var VALUE_HELPS = {
 		salesOrgs: {
 			set: SALES_ORG_SET,
+			byEmail: true,
 			items: function (aRows) {
 				return _uniqueItems(aRows, function (r) { return r.SALES_ORG; }, function () { return ""; });
 			}
@@ -274,6 +275,7 @@ sap.ui.define([
 		},
 		customers: {
 			set: CUSTOMER_SET,
+			byEmail: true,
 			items: function (aRows) {
 				return _uniqueItems(aRows, function (r) { return r.CUSTOMER; }, function (r) { return r.CUSTOMER_NAME; },
 					function (r) { return [r.CITY, r.COUNTRY].filter(Boolean).join(", "); });
@@ -281,6 +283,7 @@ sap.ui.define([
 		},
 		articles: {
 			set: ARTICLE_SET,
+			byEmail: true,
 			items: function (aRows) {
 				return _uniqueItems(_byLanguage(aRows, "SPRAS"), function (r) { return r.ARTICLE_SKU; },
 					function (r) { return r.DESCRIPTION; });
@@ -1401,14 +1404,21 @@ sap.ui.define([
 		// A failed read leaves only that list empty.
 		loadValueHelps: function () {
 			if (!_pValueHelps) {
-				_pValueHelps = Promise.all(Object.keys(VALUE_HELPS).map(function (sList) {
-					var oDef = VALUE_HELPS[sList];
-					return capService.list(oDef.set, { $top: VALUE_HELP_LIMIT }).then(function (aRows) {
-						_oModel.setProperty("/" + sList, oDef.items(aRows).slice(0, VALUE_HELP_LIMIT));
-					}).catch(function () {
-						_oModel.setProperty("/" + sList, []);
-					});
-				}));
+				_pValueHelps = capService.userEmail().then(function (sEmail) {
+					return Promise.all(Object.keys(VALUE_HELPS).map(function (sList) {
+						var oDef = VALUE_HELPS[sList];
+						var mQuery = { $top: VALUE_HELP_LIMIT };
+						// Sales org / customer / article: also send the logged-in user's e-mail.
+						if (oDef.byEmail) {
+							mQuery.$filter = "Email eq " + capService.literal(sEmail);
+						}
+						return capService.list(oDef.set, mQuery).then(function (aRows) {
+							_oModel.setProperty("/" + sList, oDef.items(aRows).slice(0, VALUE_HELP_LIMIT));
+						}).catch(function () {
+							_oModel.setProperty("/" + sList, []);
+						});
+					}));
+				});
 			}
 			return _pValueHelps;
 		},

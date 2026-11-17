@@ -21,6 +21,7 @@ sap.ui.define([], function () {
 	var _sBase = "";
 	var _pToken = null;
 	var _pUser = null;
+	var _pEmail = null;
 
 	// ---------------------------------------------------------------- messages
 
@@ -279,12 +280,32 @@ sap.ui.define([], function () {
 			return _pUser;
 		},
 
+		// Logged-in user's e-mail from the approuter user API (same call as storeselection.controller.js:
+		// <app path>/user-api/attributes -> data.email); "" when it cannot be read.
+		userEmail: function () {
+			if (!_pEmail) {
+				if (!_oComponent) {
+					return Promise.resolve("");
+				}
+				var sUrl = sap.ui.require.toUrl(_oComponent.getManifestEntry("/sap.app/id").replace(/\./g, "/")) + "/user-api/attributes";
+				_pEmail = fetch(sUrl, { credentials: "same-origin" }).then(function (oResponse) {
+					return oResponse.ok ? oResponse.json() : {};
+				}).then(function (data) {
+					return String(data.email || "");
+				}).catch(function () {
+					return "";
+				});
+			}
+			return _pEmail;
+		},
+
 		// Test hook.
 		_reset: function () {
 			_oComponent = null;
 			_sBase = "";
 			_pToken = null;
 			_pUser = null;
+			_pEmail = null;
 		}
 	};
 });
