@@ -103,7 +103,10 @@
                                 tokens="{path: 'pricing>/draft/customerTokens', templateShareable: false}"
                                 valueState="{pricing>/state/customer}" valueStateText="{pricing>/stateText/customer}">
                                 <tokens>
-                                    <Token key="{pricing>key}" text="{pricing>key}" tooltip="{pricing>text}" />
+                                    <!-- Customer number - CUSTOMER_NAME (number only when the name is not known) -->
+                                    <Token key="{pricing>key}"
+                                        text="{= ${pricing>text} &amp;&amp; ${pricing>text} !== ${pricing>key} ? ${pricing>key} + ' - ' + ${pricing>text} : ${pricing>key} }"
+                                        tooltip="{pricing>text}" />
                                 </tokens>
                             </MultiInput>
                         </VBox>
