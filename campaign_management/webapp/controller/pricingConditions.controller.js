@@ -344,7 +344,8 @@ sap.ui.define([
         // Opens the multi-select value help of a key field, with the current tokens ticked. The dialog
         // opens at once. Sales org / brand / customer / article are read from CAP page by page: the
         // first page on open, the next one when the list is scrolled to its end (growing), and the
-        // search is a server-side $filter. Currency / unit of measure are small and read up front.
+        // search is a server-side $filter (plus the same check in the browser). Currency and unit of
+        // measure work the same way, without the e-mail / country filter.
         onValueHelp: function (oEvent) {
             var sField = this._fieldOf(oEvent.getSource());
             var sList = PICK[sField].list;

@@ -360,12 +360,21 @@ sap.ui.define([
 		},
 		currencies: {
 			set: CURRENCY_SET,
+			lazy: true,
+			search: ["CURRENCY"],
+			orderBy: "CURRENCY",
+			key: "CURRENCY",
 			items: function (aRows) {
 				return _uniqueItems(aRows, function (r) { return r.CURRENCY; }, function () { return ""; });
 			}
 		},
 		uoms: {
 			set: UOM_SET,
+			lazy: true,
+			search: ["UNIT_OF_MEASURE", "DESCRIPTION"],
+			orderBy: "UNIT_OF_MEASURE",
+			key: "UNIT_OF_MEASURE",
+			text: "DESCRIPTION",
 			items: function (aRows) {
 				return _uniqueItems(aRows, function (r) { return r.UNIT_OF_MEASURE; }, function (r) { return r.DESCRIPTION; });
 			}
@@ -1467,18 +1476,19 @@ sap.ui.define([
 			}
 		},
 
-		// Value help lists from the CAP backend. Currencies and UnitsOfMeasure are read here once, up
-		// to VALUE_HELP_LIMIT entries, into /currencies and /uoms. Sales org / brand / customer /
-		// article are lazy: read page by page with valueHelpPage() while their value help is scrolled;
-		// /salesOrgs, /brands, /customers, /articles collect the entries picked so far (token texts).
-		// sCountry is the selected country sent with the lazy lists; changing it drops what was read.
+		// Value help lists from the CAP backend. Lists marked lazy (all of them today: sales org /
+		// brand / customer / article / currency / unit of measure) are not read here but page by page
+		// with valueHelpPage() while their value help is scrolled; /salesOrgs, /brands, /customers,
+		// /articles, /currencies, /uoms collect the entries picked so far (token texts). Any list
+		// without the lazy flag is read here once, up to VALUE_HELP_LIMIT entries.
+		// sCountry is the selected country sent with the e-mail lists; changing it drops what was read.
 		// A failed read leaves only that list empty.
 		loadValueHelps: function (sCountry) {
 			sCountry = sCountry || "";
 			if (_sValueHelpCountry !== sCountry) {
 				_sValueHelpCountry = sCountry;
 				Object.keys(VALUE_HELPS).forEach(function (sList) {
-					if (VALUE_HELPS[sList].lazy) {
+					if (VALUE_HELPS[sList].byEmail) {
 						_oModel.setProperty("/" + sList, []);
 					}
 				});
