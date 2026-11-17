@@ -195,14 +195,26 @@ sap.ui.define([], function () {
 			return _request("GET", sPath, mQuery);
 		},
 
-		// GET a collection; resolves with the value array (follows @odata.nextLink).
+		// GET a collection; resolves with the value array (follows @odata.nextLink). Stops once $top
+		// rows are read, on an empty page, when the server repeats a nextLink, or after
+		// LIST_MAX_PAGES requests, so a server that keeps sending nextLinks cannot loop the client.
 		list: function (sPath, mQuery) {
+			var LIST_MAX_PAGES = 20;
+			var iTop = mQuery && Number(mQuery.$top) > 0 ? Number(mQuery.$top) : Infinity;
 			var aAll = [];
+			var mSeen = {};
+			var iPages = 0;
 			function next(sUrl, mQ) {
+				iPages++;
 				return _request("GET", sUrl, mQ).then(function (oData) {
-					aAll = aAll.concat((oData && oData.value) || []);
+					var aPage = (oData && oData.value) || [];
+					aAll = aAll.concat(aPage);
 					var sNext = oData && oData["@odata.nextLink"];
-					return sNext ? next(sNext) : aAll;
+					if (!sNext || !aPage.length || aAll.length >= iTop || mSeen[sNext] || iPages >= LIST_MAX_PAGES) {
+						return aAll.slice(0, iTop);
+					}
+					mSeen[sNext] = true;
+					return next(sNext);
 				});
 			}
 			return next(sPath, mQuery);

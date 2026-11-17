@@ -3,7 +3,11 @@ sap.ui.define([
     "sap/ui/model/json/JSONModel",
     "sap/ui/model/Filter",
     "sap/ui/model/Sorter",
-    "sap/m/SelectDialog",
+    "sap/m/Dialog",
+    "sap/m/List",
+    "sap/m/SearchField",
+    "sap/m/Toolbar",
+    "sap/m/Button",
     "sap/m/StandardListItem",
     "sap/m/MessageBox",
     "sap/m/MessageToast",
@@ -11,7 +15,7 @@ sap.ui.define([
     "com/luxasia/campaignmanagement/util/pricingService",
     "com/luxasia/campaignmanagement/util/pricingFormatter",
     "com/luxasia/campaignmanagement/util/backNavGuard"
-], function (Controller, JSONModel, Filter, Sorter, SelectDialog, StandardListItem, MessageBox, MessageToast,
+], function (Controller, JSONModel, Filter, Sorter, Dialog, List, SearchField, Toolbar, Button, StandardListItem, MessageBox, MessageToast,
     campaignService, pricingService, pricingFormatter, backNavGuard) {
     "use strict";
 
@@ -33,6 +37,7 @@ sap.ui.define([
         rateUnit: { list: "currencies", title: "Pricing_Help_Currency" },
         uom: { list: "uoms", title: "Pricing_Help_Uom" }
     };
+    var VH_CHUNK = 25; // rows a lazy value help list adds per scroll (CAP pages are 100 rows)
     var MAX_DRAFTS = 500; // rows one "Add" may create (product of the picked values)
 
     return Controller.extend("com.luxasia.campaignmanagement.controller.pricingConditions", {
@@ -105,14 +110,16 @@ sap.ui.define([
             }).then(function () {
                 that.getView().setModel(pricingService.getModel(), "PricingModel");
                 that._filterRecords(sId);
-                // Sales org / brand / customer / article value help lists (CAP).
-                pricingService.loadValueHelps();
                 return Promise.all([that._campaign(sId), pricingService.loadConditions(sId), pricingService.loadConditionTypes(),
                     // Campaign picker: always the full list from CAP, also when the page is opened directly.
                     campaignService.listAll().catch(function () { return []; })]);
             }).then(function (aResults) {
                 var oCampaign = aResults[0];
                 oModel.setProperty("/country", oCampaign.country);
+                // Sales org / brand / customer / article value help lists (CAP), for the user's
+                // e-mail and the user's default country (same as Create Campaign: selected store's
+                // country, else the sales employee's).
+                pricingService.loadValueHelps(campaignService.getDefaultCountry());
                 oModel.setProperty("/campaigns", that._campaignList(oCampaign, aResults[3]));
                 // Condition types from CAP ConditionTypes (code + DESCRIPTION) only.
                 var aTypes = aResults[2];
@@ -334,67 +341,246 @@ sap.ui.define([
 
         // ------------------------------------------------------------ multi-select value helps
 
-        // Opens the multi-select value help of a key field, with the current tokens ticked.
+        // Opens the multi-select value help of a key field, with the current tokens ticked. The dialog
+        // opens at once. Sales org / brand / customer / article are read from CAP page by page: the
+        // first page on open, the next one when the list is scrolled to its end (growing), and the
+        // search is a server-side $filter. Currency / unit of measure are small and read up front.
         onValueHelp: function (oEvent) {
             var sField = this._fieldOf(oEvent.getSource());
-            var mPicked = {};
+            var sList = PICK[sField].list;
+            var oPick = this._pickDialog(sField);
+            // Ticks by key; kept across searches and scrolling, written to the tokens on Select.
+            oPick.picked = {};
             (this._model().getProperty("/draft/" + sField + "Tokens") || []).forEach(function (t) {
-                mPicked[t.key] = true;
+                oPick.picked[t.key] = { key: t.key, text: t.text };
             });
-            var aItems = (pricingService.getModel().getProperty("/" + PICK[sField].list) || []).map(function (o) {
-                return { key: o.key, text: o.text === o.key ? "" : o.text, info: o.info || "", selected: !!mPicked[o.key] };
+            oPick.search.setValue("");
+            oPick.list.getBinding("items").filter([]);
+            if (oPick.lazy) {
+                // Drop the last session's rows first, so their ticks do not overrule the tokens.
+                oPick.model.setData({ items: [] });
+                this._vhLoad(oPick, "", true);
+                oPick.dialog.open();
+                return;
+            }
+            var aItems = (pricingService.getModel().getProperty("/" + sList) || []).map(function (o) {
+                return { key: o.key, text: o.text === o.key ? "" : o.text, info: o.info || "", selected: !!oPick.picked[o.key] };
             });
-            var oDialog = this._pickDialog(sField);
-            oDialog.getModel("vh").setData({ items: aItems });
-            oDialog.getBinding("items").filter([]);
-            oDialog.open("");
+            oPick.model.setData({ items: aItems });
+            oPick.dialog.open();
         },
 
+        // Moves the ticks of the rows in the dialog into oPick.picked.
+        _vhHarvest: function (oPick) {
+            (oPick.model.getProperty("/items") || []).forEach(function (o) {
+                if (o.selected) {
+                    oPick.picked[o.key] = { key: o.key, text: o.text || o.key };
+                } else {
+                    delete oPick.picked[o.key];
+                }
+            });
+        },
+
+        // Reads a page of a lazy value help from CAP. bReset starts again at the first page (open /
+        // new search, list busy); otherwise the next page is appended in the background while the
+        // user still scrolls through the rows already loaded. Answers of an older search are dropped.
+        _vhLoad: function (oPick, sSearch, bReset, bBusy) {
+            var that = this;
+            if (bReset) {
+                this._vhHarvest(oPick);
+                oPick.searchText = sSearch;
+                oPick.next = 0;
+                oPick.more = true;
+                oPick.seen = {}; // keys of every row read for this search (matching or not)
+                oPick.loading = false;
+                oPick.seq++; // drop a page of the previous search still on its way
+                // Start the list over: a fresh binding resets growing (rows shown so far), and the
+                // dialog scrolls back to the top - also after thousands of rows were scrolled.
+                oPick.list.unbindItems();
+                oPick.model.setData({ items: [] });
+                this._vhBindItems(oPick);
+                var oScroll = oPick.dialog && oPick.dialog.getScrollDelegate && oPick.dialog.getScrollDelegate();
+                if (oScroll) {
+                    oScroll.scrollTo(0, 0);
+                }
+            }
+            if (oPick.loading || !oPick.more) {
+                return;
+            }
+            var iSeq = ++oPick.seq;
+            oPick.loading = true;
+            if (bReset || bBusy) {
+                oPick.list.setBusy(true);
+            }
+            pricingService.valueHelpPage(oPick.listName, oPick.searchText, oPick.next).then(function (oPage) {
+                if (iSeq !== oPick.seq) {
+                    return;
+                }
+                var aItems = (oPick.model.getProperty("/items") || []).slice();
+                var iNew = 0;
+                var iAdded = 0;
+                // The search is also applied here, in case the service ignores the contains() part
+                // of $filter: only rows whose key or description contain the text are shown.
+                var sLower = (oPick.searchText || "").trim().toLowerCase();
+                oPage.items.forEach(function (o) {
+                    if (oPick.seen[o.key]) {
+                        return;
+                    }
+                    oPick.seen[o.key] = true;
+                    iNew++;
+                    if (sLower && (o.key + " " + (o.text || "")).toLowerCase().indexOf(sLower) === -1) {
+                        return;
+                    }
+                    iAdded++;
+                    aItems.push({ key: o.key, text: o.text === o.key ? "" : o.text, info: o.info || "",
+                        selected: !!oPick.picked[o.key] });
+                });
+                oPick.next = oPage.next;
+                // A page with no new rows (e.g. a service that ignores $skip) ends the list.
+                oPick.more = oPage.more && iNew > 0;
+                oPick.loading = false;
+                oPick.list.setBusy(false);
+                // Every loaded row already shown (fast scrolling): the user is at the bottom and no
+                // further scroll event will come, so let growing show the new rows right away.
+                var oInfo = oPick.list.getGrowingInfo();
+                var bAtEnd = !bReset && oInfo && oInfo.total > 0 && oInfo.actual >= oInfo.total;
+                oPick.model.setProperty("/items", aItems);
+                var oGrowing = oPick.list._oGrowingDelegate;
+                if (bAtEnd && oGrowing && typeof oGrowing.requestNewPage === "function") {
+                    oGrowing.requestNewPage();
+                }
+                // Searching and nothing matched yet: read the next page right away (one request at a
+                // time, list busy) until the first matches show up or the data ends.
+                if (sLower && !aItems.length && oPick.more) {
+                    that._vhLoad(oPick, oPick.searchText, false, true);
+                }
+            }).catch(function (oError) {
+                if (iSeq === oPick.seq) {
+                    oPick.more = false;
+                    oPick.loading = false;
+                    oPick.list.setBusy(false);
+                    MessageToast.show(oError.message);
+                }
+            });
+        },
+
+        // Binds the dialog list to the rows in oPick.model (lazy lists keep the server order).
+        _vhBindItems: function (oPick) {
+            oPick.list.bindItems({
+                path: "vh>/items",
+                sorter: oPick.lazy ? undefined : new Sorter("key"),
+                templateShareable: false,
+                template: new StandardListItem({
+                    title: "{vh>key}",
+                    description: "{vh>text}",
+                    info: "{vh>info}",
+                    selected: "{vh>selected}"
+                })
+            });
+        },
+
+        // Multi-select value help of a field: a Dialog with a search field and a growing list.
+        // Growing with scroll-to-load only shows rows that are already in the model, and it reacts to
+        // a scroll event near the bottom. So lazy lists read the next CAP page ahead: as soon as no more
+        // than one growing chunk of loaded rows is left to show, the next page is requested, and it
+        // is there before the user reaches the bottom.
         _pickDialog: function (sField) {
             this._mPick = this._mPick || {};
             if (this._mPick[sField]) {
                 return this._mPick[sField];
             }
             var that = this;
-            var oVh = new JSONModel({ items: [] });
-            oVh.setSizeLimit(5000);
-            function search(oEvt) {
-                var sLower = (oEvt.getParameter("value") || "").toLowerCase();
-                oEvt.getSource().getBinding("items").filter(sLower ? [new Filter({
+            var sList = PICK[sField].list;
+            var bLazy = pricingService.isLazyValueHelp(sList);
+            var oPick = {
+                listName: sList, lazy: bLazy, picked: {}, seq: 0,
+                searchText: "", next: 0, more: false, loading: false,
+                model: new JSONModel({ items: [] })
+            };
+            oPick.model.setSizeLimit(1000000);
+            var iTimer = null;
+            function search(sValue, bNow) {
+                if (bLazy) {
+                    // Server-side search; typing is debounced, Enter / search icon runs at once.
+                    clearTimeout(iTimer);
+                    if (bNow) {
+                        that._vhLoad(oPick, sValue, true);
+                    } else {
+                        iTimer = setTimeout(function () { that._vhLoad(oPick, sValue, true); }, 400);
+                    }
+                    return;
+                }
+                var sLower = (sValue || "").toLowerCase();
+                oPick.list.getBinding("items").filter(sLower ? [new Filter({
                     path: "",
                     test: function (o) {
                         return (o.key + " " + o.text).toLowerCase().indexOf(sLower) !== -1;
                     }
                 })] : []);
             }
-            var oDialog = new SelectDialog({
-                title: this._i18n(PICK[sField].title),
+            oPick.search = new SearchField({
+                width: "100%",
+                liveChange: function (oEvt) { search(oEvt.getParameter("newValue"), false); },
+                search: function (oEvt) { search(oEvt.getParameter("query"), true); }
+            });
+            oPick.list = new List({
+                mode: "MultiSelect",
+                includeItemInSelection: true,
                 noDataText: this._i18n("Pricing_Help_Empty"),
-                multiSelect: true,
-                rememberSelections: true,
-                growingThreshold: 200,
-                items: {
-                    path: "vh>/items",
-                    sorter: new Sorter("key"),
-                    templateShareable: false,
-                    template: new StandardListItem({
-                        title: "{vh>key}",
-                        description: "{vh>text}",
-                        info: "{vh>info}",
-                        selected: "{vh>selected}"
-                    })
-                },
-                search: search,
-                liveChange: search,
-                confirm: function () {
-                    // Read the ticks from the model, so values hidden by the search stay picked.
-                    that._setTokens(sField, oVh.getProperty("/items").filter(function (o) { return o.selected; }));
+                busyIndicatorDelay: 0,
+                growing: true,
+                growingThreshold: bLazy ? VH_CHUNK : 50,
+                growingScrollToLoad: true,
+                // Lazy: at most one chunk of loaded rows left to show -> read the next page now. A
+                // search that already shows its matches (less than a chunk, nothing to scroll) stops
+                // here; with more matches the next pages come while scrolling.
+                updateFinished: function (oEvt) {
+                    var iActual = oEvt.getParameter("actual");
+                    var iTotal = oEvt.getParameter("total");
+                    var bSearchDone = !!(oPick.searchText || "").trim() && iTotal > 0 && iTotal < VH_CHUNK;
+                    if (bLazy && !bSearchDone && iTotal - iActual <= VH_CHUNK) {
+                        that._vhLoad(oPick, oPick.searchText, false);
+                    }
                 }
             });
-            oDialog.setModel(oVh, "vh");
-            this.getView().addDependent(oDialog);
-            this._mPick[sField] = oDialog;
-            return oDialog;
+            this._vhBindItems(oPick);
+            oPick.dialog = new Dialog({
+                title: this._i18n(PICK[sField].title),
+                contentWidth: "30rem",
+                contentHeight: "32rem",
+                draggable: true,
+                resizable: true,
+                subHeader: new Toolbar({ content: [oPick.search] }),
+                content: [oPick.list],
+                beginButton: new Button({
+                    text: this._i18n("Pricing_Help_Select"),
+                    type: "Emphasized",
+                    press: function () {
+                        // Ticks in the list plus the ones kept from other searches.
+                        that._vhHarvest(oPick);
+                        var aPicked = Object.keys(oPick.picked).map(function (k) { return oPick.picked[k]; });
+                        if (bLazy) {
+                            pricingService.rememberValueHelpItems(sList, aPicked);
+                        }
+                        that._setTokens(sField, aPicked);
+                        oPick.dialog.close();
+                    }
+                }),
+                endButton: new Button({
+                    text: this._i18n("Pricing_Help_Cancel"),
+                    press: function () { oPick.dialog.close(); }
+                }),
+                afterClose: function () {
+                    clearTimeout(iTimer);
+                    oPick.seq++; // drop answers still on their way
+                    oPick.loading = false;
+                    oPick.list.setBusy(false);
+                }
+            });
+            oPick.dialog.setModel(oPick.model, "vh");
+            this.getView().addDependent(oPick.dialog);
+            this._mPick[sField] = oPick;
+            return oPick;
         },
 
         // Tokens of a key field; the single draft value is the first one (used for the summary only,

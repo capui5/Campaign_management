@@ -74,6 +74,8 @@ sap.ui.define([
 	var CURRENCY_SET = "Currencies";
 	var UOM_SET = "UnitsOfMeasure";
 	var VALUE_HELP_LIMIT = 5000; // entries per dropdown (the views bind with length: 5000)
+	var VALUE_HELP_LANGUAGE = "E"; // description language of the lazily loaded value helps
+	var VALUE_HELP_PAGE = 100; // rows per request of a lazily loaded value help (read on scroll)
 
 	// Row property -> CampaignPricingRecords property (API §5).
 	var FIELD = {
@@ -209,6 +211,7 @@ sap.ui.define([
 	var _pInit = null;
 	var _bFreshCatalog = false; // catalogue just read by init(); the next reloadCatalog() skips
 	var _pValueHelps = null;
+	var _sValueHelpCountry = null; // country the value helps were read for
 	var _iRowSeq = 0;
 	var _mAvailable = { config: false, records: false, posting: false };
 	var _aValidityProps = []; // property names of to_SlsPrcgCndnRecdValidity
@@ -250,6 +253,48 @@ sap.ui.define([
 		});
 	}
 
+	// $filter of a value help read: the logged-in user's e-mail and the selected country for the
+	// lists that need them, plus a case-insensitive "contains" search over oDef.search.
+	function _valueHelpFilter(oDef, sEmail, sCountry, sSearch) {
+		var aParts = [];
+		if (oDef.byEmail) {
+			aParts.push("Email eq " + capService.literal(sEmail));
+			aParts.push("Country eq " + capService.literal(sCountry));
+		}
+		// One row per value: the logon-language (E) description only.
+		if (oDef.language) {
+			aParts.push(oDef.language + " eq " + capService.literal(VALUE_HELP_LANGUAGE));
+		}
+		if (sSearch && oDef.search) {
+			var sLit = capService.literal(sSearch.toLowerCase());
+			aParts.push("(" + oDef.search.map(function (sProp) {
+				return "contains(tolower(" + sProp + ")," + sLit + ")";
+			}).join(" or ") + ")");
+		}
+		return aParts.join(" and ");
+	}
+
+	// Adds items to a value help list in the model (no duplicate keys), so token texts can be
+	// looked up for every value seen so far.
+	function _mergeItems(sList, aItems) {
+		var aList = (_oModel.getProperty("/" + sList) || []).slice();
+		var mSeen = {};
+		aList.forEach(function (o) { mSeen[o.key] = true; });
+		aItems.forEach(function (o) {
+			if (!mSeen[o.key]) {
+				mSeen[o.key] = true;
+				aList.push(o);
+			}
+		});
+		_oModel.setProperty("/" + sList, aList);
+	}
+
+	// Country shown on the right of a value help entry: the row's own country, else the selected
+	// country the list was filtered by.
+	function _countryOf(r, sCountry) {
+		return r.COUNTRY || r.Country || r.LAND1 || sCountry || "";
+	}
+
 	// Rows in the logon language first, so _uniqueItems keeps that description.
 	function _byLanguage(aRows, sProp) {
 		return aRows.slice().sort(function (a, b) {
@@ -262,31 +307,55 @@ sap.ui.define([
 		salesOrgs: {
 			set: SALES_ORG_SET,
 			byEmail: true,
-			items: function (aRows) {
-				return _uniqueItems(aRows, function (r) { return r.SALES_ORG; }, function () { return ""; });
+			lazy: true,
+			search: ["SALES_ORG"],
+			orderBy: "SALES_ORG",
+			key: "SALES_ORG",
+			items: function (aRows, sCountry) {
+				return _uniqueItems(aRows, function (r) { return r.SALES_ORG; }, function () { return ""; },
+					function (r) { return _countryOf(r, sCountry); });
 			}
 		},
 		brands: {
 			set: BRAND_SET,
-			items: function (aRows) {
+			byEmail: true,
+			lazy: true,
+			search: ["BRAND", "DESCRIPTION"],
+			orderBy: "BRAND",
+			key: "BRAND",
+			text: "DESCRIPTION",
+			language: "LANGUAGE",
+			items: function (aRows, sCountry) {
 				return _uniqueItems(_byLanguage(aRows, "LANGUAGE"), function (r) { return r.BRAND; },
-					function (r) { return r.DESCRIPTION; });
+					function (r) { return r.DESCRIPTION; }, function (r) { return _countryOf(r, sCountry); });
 			}
 		},
 		customers: {
 			set: CUSTOMER_SET,
 			byEmail: true,
-			items: function (aRows) {
+			lazy: true,
+			search: ["CUSTOMER", "CUSTOMER_NAME"],
+			orderBy: "CUSTOMER",
+			key: "CUSTOMER",
+			text: "CUSTOMER_NAME",
+			info: ["CITY", "COUNTRY"],
+			items: function (aRows, sCountry) {
 				return _uniqueItems(aRows, function (r) { return r.CUSTOMER; }, function (r) { return r.CUSTOMER_NAME; },
-					function (r) { return [r.CITY, r.COUNTRY].filter(Boolean).join(", "); });
+					function (r) { return [r.CITY, _countryOf(r, sCountry)].filter(Boolean).join(", "); });
 			}
 		},
 		articles: {
 			set: ARTICLE_SET,
 			byEmail: true,
-			items: function (aRows) {
+			lazy: true,
+			search: ["ARTICLE_SKU", "DESCRIPTION"],
+			orderBy: "ARTICLE_SKU",
+			key: "ARTICLE_SKU",
+			text: "DESCRIPTION",
+			language: "SPRAS",
+			items: function (aRows, sCountry) {
 				return _uniqueItems(_byLanguage(aRows, "SPRAS"), function (r) { return r.ARTICLE_SKU; },
-					function (r) { return r.DESCRIPTION; });
+					function (r) { return r.DESCRIPTION; }, function (r) { return _countryOf(r, sCountry); });
 			}
 		},
 		currencies: {
@@ -1398,19 +1467,32 @@ sap.ui.define([
 			}
 		},
 
-		// Value help lists from the CAP backend (SalesOrganizations, BrandsMaster, Customers, Articles,
-		// Currencies, UnitsOfMeasure), read once per session, up to VALUE_HELP_LIMIT entries each, into
-		// /salesOrgs, /brands, /customers, /articles, /currencies, /uoms.
+		// Value help lists from the CAP backend. Currencies and UnitsOfMeasure are read here once, up
+		// to VALUE_HELP_LIMIT entries, into /currencies and /uoms. Sales org / brand / customer /
+		// article are lazy: read page by page with valueHelpPage() while their value help is scrolled;
+		// /salesOrgs, /brands, /customers, /articles collect the entries picked so far (token texts).
+		// sCountry is the selected country sent with the lazy lists; changing it drops what was read.
 		// A failed read leaves only that list empty.
-		loadValueHelps: function () {
+		loadValueHelps: function (sCountry) {
+			sCountry = sCountry || "";
+			if (_sValueHelpCountry !== sCountry) {
+				_sValueHelpCountry = sCountry;
+				Object.keys(VALUE_HELPS).forEach(function (sList) {
+					if (VALUE_HELPS[sList].lazy) {
+						_oModel.setProperty("/" + sList, []);
+					}
+				});
+			}
 			if (!_pValueHelps) {
 				_pValueHelps = capService.userEmail().then(function (sEmail) {
-					return Promise.all(Object.keys(VALUE_HELPS).map(function (sList) {
+					return Promise.all(Object.keys(VALUE_HELPS).filter(function (sList) {
+						return !VALUE_HELPS[sList].lazy;
+					}).map(function (sList) {
 						var oDef = VALUE_HELPS[sList];
 						var mQuery = { $top: VALUE_HELP_LIMIT };
-						// Sales org / customer / article: also send the logged-in user's e-mail.
-						if (oDef.byEmail) {
-							mQuery.$filter = "Email eq " + capService.literal(sEmail);
+						var sFilter = _valueHelpFilter(oDef, sEmail, sCountry, "");
+						if (sFilter) {
+							mQuery.$filter = sFilter;
 						}
 						return capService.list(oDef.set, mQuery).then(function (aRows) {
 							_oModel.setProperty("/" + sList, oDef.items(aRows).slice(0, VALUE_HELP_LIMIT));
@@ -1421,6 +1503,47 @@ sap.ui.define([
 				});
 			}
 			return _pValueHelps;
+		},
+
+		// Whether a value help list is read page by page (valueHelpPage) instead of up front.
+		isLazyValueHelp: function (sList) {
+			return !!(VALUE_HELPS[sList] && VALUE_HELPS[sList].lazy);
+		},
+
+		// One page of a lazy value help, read when the list is opened / scrolled to its end:
+		// GET <set>?$count=true&$orderby=..&$filter=..&$top=VALUE_HELP_PAGE&$skip=iSkip, filtered by the
+		// user's e-mail, the selected country and sSearch (contains, case-insensitive). Plain JSON,
+		// so rows without a unique key are fine. Resolves with { items: [{ key, text, info }],
+		// next: $skip of the next page, more: whether the server has more rows, count }.
+		valueHelpPage: function (sList, sSearch, iSkip) {
+			var oDef = VALUE_HELPS[sList];
+			var sCountry = _sValueHelpCountry || "";
+			iSkip = iSkip || 0;
+			return capService.userEmail().then(function (sEmail) {
+				var mQuery = { $count: true, $orderby: oDef.orderBy, $top: VALUE_HELP_PAGE, $skip: iSkip };
+				var sFilter = _valueHelpFilter(oDef, sEmail, sCountry, (sSearch || "").trim());
+				if (sFilter) {
+					mQuery.$filter = sFilter;
+				}
+				return capService.get(oDef.set, mQuery);
+			}).then(function (oData) {
+				var aRows = (oData && oData.value) || [];
+				var iNext = iSkip + aRows.length;
+				var vCount = oData && oData["@odata.count"];
+				var iCount = vCount === undefined || vCount === null ? NaN : Number(vCount);
+				// More rows: a full page always means "ask for the next one" (some services report
+				// @odata.count as the size of the returned page, not the total), else a count or
+				// nextLink beyond this page. The end is reached on the first page with fewer rows.
+				var bMore = aRows.length >= VALUE_HELP_PAGE || !!(oData && oData["@odata.nextLink"]) ||
+					(!isNaN(iCount) && iNext < iCount);
+				return { items: oDef.items(aRows, sCountry), next: iNext, more: bMore && aRows.length > 0,
+					count: isNaN(iCount) ? null : iCount };
+			});
+		},
+
+		// Keeps picked value help entries in the model list, so token texts can be looked up later.
+		rememberValueHelpItems: function (sList, aItems) {
+			_mergeItems(sList, aItems || []);
 		},
 
 		// Condition types for the dropdown: [{ key, text }], from CAP ConditionTypes only. Rejects with
@@ -1512,6 +1635,7 @@ sap.ui.define([
 			_pInit = null;
 			_bFreshCatalog = false;
 			_pValueHelps = null;
+			_sValueHelpCountry = null;
 			_iRowSeq = 0;
 			_mAvailable = { config: false, records: false, posting: false };
 			_aValidityProps = [];
