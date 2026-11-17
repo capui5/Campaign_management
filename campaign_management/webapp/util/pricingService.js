@@ -1525,12 +1525,41 @@ sap.ui.define([
 		// user's e-mail, the selected country and sSearch (contains, case-insensitive). Plain JSON,
 		// so rows without a unique key are fine. Resolves with { items: [{ key, text, info }],
 		// next: $skip of the next page, more: whether the server has more rows, count }.
-		valueHelpPage: function (sList, sSearch, iSkip) {
+		// iTop overrides the page size (default VALUE_HELP_PAGE); iParallel > 1 reads that many pages
+		// of iTop rows at once (from iSkip on) and returns them as one page - used by the search, so a
+		// service that does not filter is scanned in a few round trips instead of hundreds.
+		valueHelpPage: function (sList, sSearch, iSkip, iTop, iParallel) {
+			var that = this;
+			iSkip = iSkip || 0;
+			iTop = iTop || VALUE_HELP_PAGE;
+			if (iParallel > 1) {
+				var aSkips = [];
+				for (var i = 0; i < iParallel; i++) {
+					aSkips.push(iSkip + i * iTop);
+				}
+				return Promise.all(aSkips.map(function (iS) {
+					return that.valueHelpPage(sList, sSearch, iS, iTop);
+				})).then(function (aPages) {
+					// Pages in order up to the first one that ends the data, or that came back shorter
+					// than iTop (a server page limit): the following pages would leave a gap, so the
+					// next read continues right after it.
+					var oAll = { items: [], next: iSkip, more: true, count: null };
+					for (var j = 0; j < aPages.length && oAll.more; j++) {
+						oAll.items = oAll.items.concat(aPages[j].items);
+						oAll.next = aPages[j].next;
+						oAll.more = aPages[j].more;
+						oAll.count = aPages[j].count;
+						if (aPages[j].next !== aSkips[j] + iTop) {
+							break;
+						}
+					}
+					return oAll;
+				});
+			}
 			var oDef = VALUE_HELPS[sList];
 			var sCountry = _sValueHelpCountry || "";
-			iSkip = iSkip || 0;
 			return capService.userEmail().then(function (sEmail) {
-				var mQuery = { $count: true, $orderby: oDef.orderBy, $top: VALUE_HELP_PAGE, $skip: iSkip };
+				var mQuery = { $count: true, $orderby: oDef.orderBy, $top: iTop, $skip: iSkip };
 				var sFilter = _valueHelpFilter(oDef, sEmail, sCountry, (sSearch || "").trim());
 				if (sFilter) {
 					mQuery.$filter = sFilter;
@@ -1544,7 +1573,7 @@ sap.ui.define([
 				// More rows: a full page always means "ask for the next one" (some services report
 				// @odata.count as the size of the returned page, not the total), else a count or
 				// nextLink beyond this page. The end is reached on the first page with fewer rows.
-				var bMore = aRows.length >= VALUE_HELP_PAGE || !!(oData && oData["@odata.nextLink"]) ||
+				var bMore = aRows.length >= iTop || !!(oData && oData["@odata.nextLink"]) ||
 					(!isNaN(iCount) && iNext < iCount);
 				return { items: oDef.items(aRows, sCountry), next: iNext, more: bMore && aRows.length > 0,
 					count: isNaN(iCount) ? null : iCount };

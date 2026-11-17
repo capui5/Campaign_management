@@ -37,6 +37,9 @@ sap.ui.define([
         rateUnit: { list: "currencies", title: "Pricing_Help_Currency" },
         uom: { list: "uoms", title: "Pricing_Help_Uom" }
     };
+    var VH_SEARCH_PAGE = 1000; // rows per request while searching
+    var VH_SEARCH_PARALLEL = 4; // search requests sent at once
+    var VH_SEARCH_DELAY = 250; // ms after the last key stroke before the search runs
     var VH_CHUNK = 25; // rows a lazy value help list adds per scroll (CAP pages are 100 rows)
     var MAX_DRAFTS = 500; // rows one "Add" may create (product of the picked values)
 
@@ -413,7 +416,11 @@ sap.ui.define([
             if (bReset || bBusy) {
                 oPick.list.setBusy(true);
             }
-            pricingService.valueHelpPage(oPick.listName, oPick.searchText, oPick.next).then(function (oPage) {
+            // Searching: big pages, several at once (fast even if the service does not filter);
+            // plain scrolling: one page of 100.
+            var bSearching = !!(oPick.searchText || "").trim();
+            pricingService.valueHelpPage(oPick.listName, oPick.searchText, oPick.next,
+                bSearching ? VH_SEARCH_PAGE : 0, bSearching ? VH_SEARCH_PARALLEL : 1).then(function (oPage) {
                 if (iSeq !== oPick.seq) {
                     return;
                 }
@@ -507,7 +514,7 @@ sap.ui.define([
                     if (bNow) {
                         that._vhLoad(oPick, sValue, true);
                     } else {
-                        iTimer = setTimeout(function () { that._vhLoad(oPick, sValue, true); }, 400);
+                        iTimer = setTimeout(function () { that._vhLoad(oPick, sValue, true); }, VH_SEARCH_DELAY);
                     }
                     return;
                 }
