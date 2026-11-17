@@ -396,6 +396,7 @@ sap.ui.define([
                 oPick.next = 0;
                 oPick.more = true;
                 oPick.seen = {}; // keys of every row read for this search (matching or not)
+                oPick.cachePos = 0; // browser search: rows of the cache already looked at
                 oPick.loading = false;
                 oPick.seq++; // drop a page of the previous search still on its way
                 // Start the list over: a fresh binding resets growing (rows shown so far), and the
@@ -411,14 +412,18 @@ sap.ui.define([
             if (oPick.loading || !oPick.more) {
                 return;
             }
+            var bSearching = !!(oPick.searchText || "").trim();
+            // The service is known to ignore the search: search the cached rows in the browser.
+            if (bSearching && pricingService.valueHelpIgnoresSearch(oPick.listName)) {
+                this._vhSearchCached(oPick);
+                return;
+            }
             var iSeq = ++oPick.seq;
             oPick.loading = true;
             if (bReset || bBusy) {
                 oPick.list.setBusy(true);
             }
-            // Searching: big pages, several at once (fast even if the service does not filter);
-            // plain scrolling: one page of 100.
-            var bSearching = !!(oPick.searchText || "").trim();
+            // Searching: big pages, several at once; plain scrolling: one page of 100.
             pricingService.valueHelpPage(oPick.listName, oPick.searchText, oPick.next,
                 bSearching ? VH_SEARCH_PAGE : 0, bSearching ? VH_SEARCH_PARALLEL : 1).then(function (oPage) {
                 if (iSeq !== oPick.seq) {
@@ -427,9 +432,21 @@ sap.ui.define([
                 var aItems = (oPick.model.getProperty("/items") || []).slice();
                 var iNew = 0;
                 var iAdded = 0;
-                // The search is also applied here, in case the service ignores the contains() part
-                // of $filter: only rows whose key or description contain the text are shown.
                 var sLower = (oPick.searchText || "").trim().toLowerCase();
+                // Rows that do not contain the search text: the service ignores the contains() part
+                // of $filter. Remember that and search in the browser from now on (cached rows,
+                // bigger parallel reads), also for later searches in this list.
+                if (sLower && oPage.items.some(function (o) {
+                    return (o.key + " " + (o.text || "")).toLowerCase().indexOf(sLower) === -1;
+                })) {
+                    pricingService.markValueHelpIgnoresSearch(oPick.listName);
+                    oPick.loading = false;
+                    oPick.seen = {};
+                    oPick.cachePos = 0;
+                    oPick.model.setProperty("/items", []);
+                    that._vhSearchCached(oPick);
+                    return;
+                }
                 oPage.items.forEach(function (o) {
                     if (oPick.seen[o.key]) {
                         return;
@@ -463,6 +480,66 @@ sap.ui.define([
                     that._vhLoad(oPick, oPick.searchText, false, true);
                 }
             }).catch(function (oError) {
+                if (iSeq === oPick.seq) {
+                    oPick.more = false;
+                    oPick.loading = false;
+                    oPick.list.setBusy(false);
+                    MessageToast.show(oError.message);
+                }
+            });
+        },
+
+        // Search in the browser (the service ignores the search text): looks through the cached rows
+        // first - no request at all when they hold a match - and reads more rows into the cache (8 x
+        // 1000 at once) until a match shows up or the data ends. Scrolling calls it again for more.
+        _vhSearchCached: function (oPick) {
+            var iSeq = ++oPick.seq;
+            var sList = oPick.listName;
+            var sLower = (oPick.searchText || "").trim().toLowerCase();
+            var iFound = 0;
+            oPick.loading = true;
+            function step() {
+                if (iSeq !== oPick.seq) {
+                    return;
+                }
+                var oCache = pricingService.valueHelpCache(sList);
+                var aItems = (oPick.model.getProperty("/items") || []).slice();
+                var iAdded = 0;
+                for (var i = oPick.cachePos; i < oCache.items.length; i++) {
+                    var o = oCache.items[i];
+                    if (oPick.seen[o.key]) {
+                        continue;
+                    }
+                    oPick.seen[o.key] = true;
+                    if ((o.key + " " + (o.text || "")).toLowerCase().indexOf(sLower) === -1) {
+                        continue;
+                    }
+                    iAdded++;
+                    aItems.push({ key: o.key, text: o.text === o.key ? "" : o.text, info: o.info || "",
+                        selected: !!oPick.picked[o.key] });
+                }
+                oPick.cachePos = oCache.items.length;
+                if (iAdded) {
+                    var oInfo = oPick.list.getGrowingInfo();
+                    var bAtEnd = oInfo && oInfo.total > 0 && oInfo.actual >= oInfo.total;
+                    oPick.model.setProperty("/items", aItems);
+                    var oGrowing = oPick.list._oGrowingDelegate;
+                    if (bAtEnd && oGrowing && typeof oGrowing.requestNewPage === "function") {
+                        oGrowing.requestNewPage();
+                    }
+                }
+                iFound += iAdded;
+                if (!iFound && oCache.more) {
+                    if (!aItems.length) {
+                        oPick.list.setBusy(true);
+                    }
+                    return pricingService.valueHelpScan(sList).then(step);
+                }
+                oPick.more = oCache.more;
+                oPick.loading = false;
+                oPick.list.setBusy(false);
+            }
+            Promise.resolve().then(step).catch(function (oError) {
                 if (iSeq === oPick.seq) {
                     oPick.more = false;
                     oPick.loading = false;

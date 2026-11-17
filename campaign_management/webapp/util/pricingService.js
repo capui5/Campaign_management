@@ -212,6 +212,14 @@ sap.ui.define([
 	var _bFreshCatalog = false; // catalogue just read by init(); the next reloadCatalog() skips
 	var _pValueHelps = null;
 	var _sValueHelpCountry = null; // country the value helps were read for
+	// Lists whose service ignores the search part of $filter (it sent rows that do not match): the
+	// value help searches them in the browser, over the rows in _mVhCache.
+	var _mVhIgnoresSearch = {};
+	// List -> { items, next, more, pending }: rows read without a search, in server order, kept for
+	// the session (per selected country) so a new search first looks through what is already loaded.
+	var _mVhCache = {};
+	var VH_SCAN_PAGE = 1000; // rows per request when filling the cache
+	var VH_SCAN_PARALLEL = 8; // cache requests sent at once
 	var _iRowSeq = 0;
 	var _mAvailable = { config: false, records: false, posting: false };
 	var _aValidityProps = []; // property names of to_SlsPrcgCndnRecdValidity
@@ -1490,6 +1498,7 @@ sap.ui.define([
 				Object.keys(VALUE_HELPS).forEach(function (sList) {
 					if (VALUE_HELPS[sList].byEmail) {
 						_oModel.setProperty("/" + sList, []);
+						delete _mVhCache[sList];
 					}
 				});
 			}
@@ -1528,7 +1537,8 @@ sap.ui.define([
 		// iTop overrides the page size (default VALUE_HELP_PAGE); iParallel > 1 reads that many pages
 		// of iTop rows at once (from iSkip on) and returns them as one page - used by the search, so a
 		// service that does not filter is scanned in a few round trips instead of hundreds.
-		valueHelpPage: function (sList, sSearch, iSkip, iTop, iParallel) {
+		// bNoCount leaves out $count=true (the server does not have to count all rows).
+		valueHelpPage: function (sList, sSearch, iSkip, iTop, iParallel, bNoCount) {
 			var that = this;
 			iSkip = iSkip || 0;
 			iTop = iTop || VALUE_HELP_PAGE;
@@ -1538,7 +1548,7 @@ sap.ui.define([
 					aSkips.push(iSkip + i * iTop);
 				}
 				return Promise.all(aSkips.map(function (iS) {
-					return that.valueHelpPage(sList, sSearch, iS, iTop);
+					return that.valueHelpPage(sList, sSearch, iS, iTop, 1, bNoCount);
 				})).then(function (aPages) {
 					// Pages in order up to the first one that ends the data, or that came back shorter
 					// than iTop (a server page limit): the following pages would leave a gap, so the
@@ -1559,7 +1569,10 @@ sap.ui.define([
 			var oDef = VALUE_HELPS[sList];
 			var sCountry = _sValueHelpCountry || "";
 			return capService.userEmail().then(function (sEmail) {
-				var mQuery = { $count: true, $orderby: oDef.orderBy, $top: iTop, $skip: iSkip };
+				var mQuery = { $orderby: oDef.orderBy, $top: iTop, $skip: iSkip };
+				if (!bNoCount) {
+					mQuery.$count = true;
+				}
 				var sFilter = _valueHelpFilter(oDef, sEmail, sCountry, (sSearch || "").trim());
 				if (sFilter) {
 					mQuery.$filter = sFilter;
@@ -1578,6 +1591,51 @@ sap.ui.define([
 				return { items: oDef.items(aRows, sCountry), next: iNext, more: bMore && aRows.length > 0,
 					count: isNaN(iCount) ? null : iCount };
 			});
+		},
+
+		// Whether the service of a lazy list ignores the search text (see markValueHelpIgnoresSearch).
+		valueHelpIgnoresSearch: function (sList) {
+			return !!_mVhIgnoresSearch[sList];
+		},
+
+		// Remembers for the session that the service returned rows not matching the search: from now
+		// on that list is searched in the browser over valueHelpCache / valueHelpScan.
+		markValueHelpIgnoresSearch: function (sList) {
+			_mVhIgnoresSearch[sList] = true;
+		},
+
+		// Rows of a lazy list read so far without a search: { items, next, more }.
+		valueHelpCache: function (sList) {
+			if (!_mVhCache[sList]) {
+				_mVhCache[sList] = { items: [], next: 0, more: true, pending: null };
+			}
+			return _mVhCache[sList];
+		},
+
+		// Reads the next VH_SCAN_PARALLEL x VH_SCAN_PAGE rows (no search, no $count) into the cache;
+		// one read at a time per list. Resolves with the cache.
+		valueHelpScan: function (sList) {
+			var oCache = this.valueHelpCache(sList);
+			if (oCache.pending) {
+				return oCache.pending;
+			}
+			if (!oCache.more) {
+				return Promise.resolve(oCache);
+			}
+			oCache.pending = this.valueHelpPage(sList, "", oCache.next, VH_SCAN_PAGE, VH_SCAN_PARALLEL, true)
+				.then(function (oPage) {
+					oCache.pending = null;
+					if (_mVhCache[sList] === oCache) {
+						oCache.items = oCache.items.concat(oPage.items);
+						oCache.next = oPage.next;
+						oCache.more = oPage.more && oPage.items.length > 0;
+					}
+					return oCache;
+				}, function (oError) {
+					oCache.pending = null;
+					throw oError;
+				});
+			return oCache.pending;
 		},
 
 		// Keeps picked value help entries in the model list, so token texts can be looked up later.
@@ -1675,6 +1733,8 @@ sap.ui.define([
 			_bFreshCatalog = false;
 			_pValueHelps = null;
 			_sValueHelpCountry = null;
+			_mVhIgnoresSearch = {};
+			_mVhCache = {};
 			_iRowSeq = 0;
 			_mAvailable = { config: false, records: false, posting: false };
 			_aValidityProps = [];
