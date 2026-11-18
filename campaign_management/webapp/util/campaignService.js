@@ -50,6 +50,7 @@ sap.ui.define([
 		country: "Country",        // LAND1
 		createdOn: "Credate",      // ERDAT, YYYYMMDD
 		createdBy: "Crename",      // ERNAM
+		email: "Email",            // logged-in user's e-mail (CAP restricts the rows to that user)
 		validFrom: "ValidFrom",    // DATFR, YYYYMMDD (V4) / Edm.DateTime (V2)
 		validTo: "ValidTo",        // DATTO
 		brand: "BrandId",
@@ -188,9 +189,10 @@ sap.ui.define([
 	// $filter for the CAP search, as API §4.2: Country eq '..' and Crename eq '..' and
 	// contains(tolower(CampaignIdDesc),'..'). Several countries are or-ed; a typed campaign ID
 	// (C-...) is looked up with CampaignId eq; the created-on range (Credate is a YYYYMMDD string, so
-	// string comparison orders it) is added when entered.
-	function _capFilter(sId, sText, aCountries, sBy, oFrom, oTo) {
-		var aParts = [];
+	// string comparison orders it) is added when entered. The logged-in user's e-mail comes first,
+	// as on the pricing value helps (Email eq '..'), so only that user's campaigns are returned.
+	function _capFilter(sEmail, sId, sText, aCountries, sBy, oFrom, oTo) {
+		var aParts = [_emailFilter(sEmail)];
 		var aLands = aCountries.length ? aCountries : ALLOWED_COUNTRIES;
 		aParts.push(aLands.length === 1 ? FIELD.country + " eq " + capService.literal(aLands[0]) :
 			"(" + aLands.map(function (sLand) { return FIELD.country + " eq " + capService.literal(sLand); }).join(" or ") + ")");
@@ -206,6 +208,11 @@ sap.ui.define([
 			aParts.push(FIELD.createdOn + " ge " + capService.literal(_ymd(oFrom)) + " and " + FIELD.createdOn + " le " + capService.literal(_ymd(oTo)));
 		}
 		return aParts.join(" and ");
+	}
+
+	// Same e-mail condition as the customer value help (pricingService _valueHelpFilter).
+	function _emailFilter(sEmail) {
+		return FIELD.email + " eq " + capService.literal(sEmail || "");
 	}
 
 	// Credate is a plain YYYYMMDD string.
@@ -440,8 +447,15 @@ sap.ui.define([
 
 	// ---------------------------------------------------------------- search paging (API §4.1 / §4.2)
 
-	// Query and client-side re-check of a search; skip = rows read so far.
+	// Query and client-side re-check of a search; skip = rows read so far. Resolves once the
+	// logged-in user's e-mail is known (approuter user API), as for the customer value help.
 	function _searchQuery(oCriteria) {
+		return capService.userEmail().then(function (sEmail) {
+			return _buildQuery(sEmail, oCriteria);
+		});
+	}
+
+	function _buildQuery(sEmail, oCriteria) {
 		var c = oCriteria || {};
 		var sId = (c.campaign || "").trim().toUpperCase();
 		sId = /^C-\d+$/.test(sId) ? sId : "";
@@ -453,7 +467,7 @@ sap.ui.define([
 		oTo = oTo ? new Date(oTo.getFullYear(), oTo.getMonth(), oTo.getDate()) : null;
 		return {
 			skip: 0,
-			query: { $filter: _capFilter(sId, sText, aCountries, sBy, oFrom, oTo), $orderby: ORDER_BY },
+			query: { $filter: _capFilter(sEmail, sId, sText, aCountries, sBy, oFrom, oTo), $orderby: ORDER_BY },
 			matches: function (o) {
 				return (!sId || o.id === sId) &&
 					(!sText || o.description.toLowerCase().indexOf(sText) !== -1) &&
@@ -529,9 +543,11 @@ sap.ui.define([
 		// checked again here, so a service that ignores part of the filter cannot widen the result.
 		// No countries selected means all allowed countries.
 		search: function (oCriteria) {
-			_oPaging = _searchQuery(oCriteria);
 			_oModel.setProperty("/campaigns", []);
-			return _readPage(_oPaging);
+			return _searchQuery(oCriteria).then(function (oPaging) {
+				_oPaging = oPaging;
+				return _readPage(oPaging);
+			});
 		},
 
 		// API §4.1: the next 20 rows of the last search ($skip = rows read so far), appended.
@@ -545,22 +561,24 @@ sap.ui.define([
 		// All campaigns of the allowed countries for a picker (pricing screen), newest first, read
 		// 20 per request (API §4.1). Does not change the campaign list's /campaigns.
 		listAll: function () {
-			var oPaging = _searchQuery({});
-			return capService.listPaged(CAP_CAMPAIGNS, oPaging.query, PAGE_SIZE).then(function (oResult) {
-				return _applyPricingStatus(oResult.value.map(_toCampaign).filter(oPaging.matches));
+			return _searchQuery({}).then(function (oPaging) {
+				return capService.listPaged(CAP_CAMPAIGNS, oPaging.query, PAGE_SIZE).then(function (oResult) {
+					return _applyPricingStatus(oResult.value.map(_toCampaign).filter(oPaging.matches));
+				});
 			});
 		},
 
 		// Every page of a search (20 per request), e.g. for the overview counts.
 		searchAll: function (oCriteria) {
-			var oPaging = _searchQuery(oCriteria);
 			_oModel.setProperty("/campaigns", []);
-			var fnNext = function () {
-				return _readPage(oPaging).then(function (aCampaigns) {
-					return _oModel.getProperty("/hasMore") ? fnNext() : aCampaigns;
-				});
-			};
-			return fnNext();
+			return _searchQuery(oCriteria).then(function (oPaging) {
+				var fnNext = function () {
+					return _readPage(oPaging).then(function (aCampaigns) {
+						return _oModel.getProperty("/hasMore") ? fnNext() : aCampaigns;
+					});
+				};
+				return fnNext();
+			});
 		},
 
 		// The campaign as last loaded in the list (shown at once while get() reads the backend).
@@ -569,9 +587,14 @@ sap.ui.define([
 		},
 
 		// Picks the row with this exact ID, so a backend that ignores the $filter cannot return
-		// another campaign.
+		// another campaign. Restricted to the logged-in user's e-mail like the list, so another
+		// user's campaign cannot be opened by its URL.
 		get: function (sId) {
-			return capService.list(CAP_CAMPAIGNS, { $filter: FIELD.id + " eq " + capService.literal(sId) }).then(function (aRows) {
+			return capService.userEmail().then(function (sEmail) {
+				return capService.list(CAP_CAMPAIGNS, {
+					$filter: _emailFilter(sEmail) + " and " + FIELD.id + " eq " + capService.literal(sId)
+				});
+			}).then(function (aRows) {
 				var oRow = aRows.find(function (r) { return r[FIELD.id] === sId; });
 				if (!oRow) {
 					throw _throw(_err("Campaign " + sId + " not found."));
