@@ -187,15 +187,18 @@ sap.ui.define([
 	}
 
 	// $filter for the CAP search, as API §4.2: Country eq '..' and Crename eq '..' and
-	// contains(tolower(CampaignIdDesc),'..'). Several countries are or-ed; a typed campaign ID
+	// contains(tolower(CampaignIdDesc),'..'). Several selected countries are or-ed (no country
+	// condition when none is known); a typed campaign ID
 	// (C-...) is looked up with CampaignId eq; the created-on range (Credate is a YYYYMMDD string, so
 	// string comparison orders it) is added when entered. The logged-in user's e-mail comes first,
 	// as on the pricing value helps (Email eq '..'), so only that user's campaigns are returned.
 	function _capFilter(sEmail, sId, sText, aCountries, sBy, oFrom, oTo) {
 		var aParts = [_emailFilter(sEmail)];
-		var aLands = aCountries.length ? aCountries : ALLOWED_COUNTRIES;
-		aParts.push(aLands.length === 1 ? FIELD.country + " eq " + capService.literal(aLands[0]) :
-			"(" + aLands.map(function (sLand) { return FIELD.country + " eq " + capService.literal(sLand); }).join(" or ") + ")");
+		if (aCountries.length === 1) {
+			aParts.push(FIELD.country + " eq " + capService.literal(aCountries[0]));
+		} else if (aCountries.length) {
+			aParts.push("(" + aCountries.map(function (sLand) { return FIELD.country + " eq " + capService.literal(sLand); }).join(" or ") + ")");
+		}
 		if (sBy) {
 			aParts.push(FIELD.createdBy + " eq " + capService.literal(sBy));
 		}
@@ -459,7 +462,12 @@ sap.ui.define([
 		var c = oCriteria || {};
 		var sId = (c.campaign || "").trim().toUpperCase();
 		sId = /^C-\d+$/.test(sId) ? sId : "";
+		// Countries picked in the filter bar; none picked -> only the user's own country (store /
+		// sales employee), as on the customer and sales org value helps (Email eq .. and Country eq ..).
 		var aCountries = (c.countries || []).filter(_isAllowedCountry);
+		if (!aCountries.length && _userCountry()) {
+			aCountries = [_userCountry()];
+		}
 		var sText = sId ? "" : (c.campaign || "").trim().toLowerCase();
 		var sBy = (c.createdBy || "").trim().toUpperCase();
 		var oFrom = c.from ? new Date(c.from.getFullYear(), c.from.getMonth(), c.from.getDate()) : null;
