@@ -129,7 +129,7 @@
                                                     <m:Text text="{camp>valueText}" />
                                                     <m:Text text="{camp>validityText}" />
                                                     <m:ObjectStatus text="{camp>statusText}" state="{camp>statusState}" inverted="true" />
-                                                    <m:Text text="{camp>recordNo}" />
+                                                    <m:Text text="{camp>recordNoText}" />
                                                 </m:cells>
                                             </m:ColumnListItem>
                                         </m:items>

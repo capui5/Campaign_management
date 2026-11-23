@@ -14,9 +14,10 @@ sap.ui.define([
     "com/luxasia/campaignmanagement/util/campaignService",
     "com/luxasia/campaignmanagement/util/pricingService",
     "com/luxasia/campaignmanagement/util/pricingFormatter",
-    "com/luxasia/campaignmanagement/util/backNavGuard"
+    "com/luxasia/campaignmanagement/util/backNavGuard",
+    "com/luxasia/campaignmanagement/util/alpha"
 ], function (Controller, JSONModel, Filter, Sorter, Dialog, List, SearchField, Toolbar, Button, StandardListItem, MessageBox, MessageToast,
-    campaignService, pricingService, pricingFormatter, backNavGuard) {
+    campaignService, pricingService, pricingFormatter, backNavGuard, alpha) {
     "use strict";
 
     // Pricing conditions of a saved campaign (FDD §4.2, §5 "Pricing tab header", "Dynamic key fields",
@@ -29,6 +30,8 @@ sap.ui.define([
         "brand", "validFrom", "validTo", "rate", "rateUnit", "pricingUnit", "uom"];
 
     // Multi-select key fields: field -> PricingModel list (CAP master data) and dialog title.
+    // Fields whose numeric keys are shown without leading zeros (KUNNR / MATNR, see alpha).
+    var ALPHA_FIELDS = { customer: true, article: true };
     var PICK = {
         salesOrg: { list: "salesOrgs", title: "Pricing_Help_Sales_Org" },
         brand: { list: "brands", title: "Pricing_Help_Brand" },
@@ -51,6 +54,8 @@ sap.ui.define([
         formatValue: pricingFormatter.value,
         formatValidity: pricingFormatter.validity,
         formatStatus: pricingFormatter.status,
+        formatAlpha: pricingFormatter.alpha,
+        formatAlphaToken: pricingFormatter.alphaToken,
 
         onInit: function () {
             this.getView().setModel(new JSONModel(this._emptyState()), "pricing");
@@ -556,7 +561,7 @@ sap.ui.define([
                 sorter: oPick.lazy ? undefined : new Sorter("key"),
                 templateShareable: false,
                 template: new StandardListItem({
-                    title: "{vh>key}",
+                    title: ALPHA_FIELDS[oPick.field] ? { path: "vh>key", formatter: alpha.output } : "{vh>key}",
                     description: "{vh>text}",
                     info: "{vh>info}",
                     selected: "{vh>selected}"
@@ -578,7 +583,7 @@ sap.ui.define([
             var sList = PICK[sField].list;
             var bLazy = pricingService.isLazyValueHelp(sList);
             var oPick = {
-                listName: sList, lazy: bLazy, picked: {}, seq: 0,
+                field: sField, listName: sList, lazy: bLazy, picked: {}, seq: 0,
                 searchText: "", next: 0, more: false, loading: false,
                 model: new JSONModel({ items: [] })
             };
@@ -906,7 +911,10 @@ sap.ui.define([
                 return Object.assign({}, o, {
                     validFromText: that.formatDate(o.validFrom),
                     validToText: that.formatDate(o.validTo),
-                    statusText: that.formatStatus(o.status)
+                    statusText: that.formatStatus(o.status),
+                    customer: alpha.output(o.customer),
+                    article: alpha.output(o.article),
+                    recordNo: alpha.output(o.recordNo)
                 });
             });
             sap.ui.require(["sap/ui/export/Spreadsheet"], function (Spreadsheet) {

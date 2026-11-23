@@ -158,7 +158,8 @@ sap.ui.define([
                     scopeText: pricingFormatter.scope.call(that, o.combination, o.customer, o.article, o.brand, o.hierarchy),
                     valueText: pricingFormatter.value(o.rate, o.rateUnit, o.pricingUnit, o.uom),
                     validityText: pricingFormatter.validity(o.validFrom, o.validTo),
-                    statusText: pricingFormatter.status.call(that, o.status)
+                    statusText: pricingFormatter.status.call(that, o.status),
+                    recordNoText: pricingFormatter.alpha(o.recordNo)
                 });
             }));
             oModel.setProperty("/pricing", { total: aRows.length, saved: nSaved, open: aRows.length - nSaved });
@@ -190,7 +191,7 @@ sap.ui.define([
             (this._model().getProperty("/conditions") || []).forEach(function (c) {
                 if (c.status === pricingService.STATUS.POSTED) {
                     aEvents.push({
-                        event: that._i18n("Camp_History_Pricing", [c.conditionType, c.combination, c.recordNo]),
+                        event: that._i18n("Camp_History_Pricing", [c.conditionType, c.combination, pricingFormatter.alpha(c.recordNo)]),
                         user: c.createdBy,
                         date: c.createdOn
                     });

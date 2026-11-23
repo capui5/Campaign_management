@@ -112,6 +112,12 @@
                     <Text text="{i18n>Guide_Edit_Text}" class="campGuideCheck" />
                 </VBox>
 
+                <!-- Leading zeros of customer / article / record number -->
+                <VBox class="campCard">
+                    <Title text="{i18n>Guide_Alpha}" titleStyle="H5" class="campCardTitle" />
+                    <Text text="{i18n>Guide_Alpha_Text}" class="campGuideCheck" />
+                </VBox>
+
                 <!-- Error handling -->
                 <VBox class="campCard">
                     <Title text="{i18n>Guide_Errors}" titleStyle="H5" class="campCardTitle" />
@@ -127,6 +133,7 @@
                     <Text text="{i18n>Guide_Check_4}" class="campGuideCheck" />
                     <Text text="{i18n>Guide_Check_5}" class="campGuideCheck" />
                     <Text text="{i18n>Guide_Check_6}" class="campGuideCheck" />
+                    <Text text="{i18n>Guide_Check_7}" class="campGuideCheck" />
                 </VBox>
             </VBox>
         </content>

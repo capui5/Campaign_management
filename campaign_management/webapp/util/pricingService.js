@@ -1,7 +1,8 @@
 sap.ui.define([
 	"sap/ui/model/json/JSONModel",
-	"com/luxasia/campaignmanagement/util/capService"
-], function (JSONModel, capService) {
+	"com/luxasia/campaignmanagement/util/capService",
+	"com/luxasia/campaignmanagement/util/alpha"
+], function (JSONModel, capService, alpha) {
 	"use strict";
 
 	// Campaign pricing conditions + Axxx key configuration facade (Campaign Management FDD/TDD v1.1,
@@ -873,8 +874,8 @@ sap.ui.define([
 			combination: r[FIELD.combination],
 			salesOrg: r[FIELD.salesOrg] || "",
 			distChannel: r[FIELD.distChannel] || "",
-			customer: r[FIELD.customer] || "",
-			article: r[FIELD.article] || "",
+			customer: alpha.input(r[FIELD.customer], alpha.LENGTH.customer),
+			article: alpha.input(r[FIELD.article], alpha.LENGTH.article),
 			hierarchy: r[FIELD.hierarchy] || "",
 			brand: r[FIELD.brand] || "",
 			rate: _numText(r[FIELD.rate]),
@@ -884,7 +885,7 @@ sap.ui.define([
 			validFrom: _parseDate(r[FIELD.validFrom]),
 			validTo: _parseDate(r[FIELD.validTo]),
 			tableNo: r[FIELD.tableNo] || "",
-			recordNo: r[FIELD.recordNo] || "",
+			recordNo: alpha.input(r[FIELD.recordNo], alpha.LENGTH.recordNo),
 			createdBy: r[FIELD.createdBy] || "",
 			createdOn: _parseDate(r[FIELD.createdOn]),
 			changedBy: r[FIELD.changedBy] || "",
@@ -909,8 +910,9 @@ sap.ui.define([
 		o[FIELD.combination] = oRow.combination;
 		o[FIELD.salesOrg] = oRow.salesOrg;
 		o[FIELD.distChannel] = oRow.distChannel;
-		o[FIELD.customer] = aFields.indexOf("customer") !== -1 ? oRow.customer : null;
-		o[FIELD.article] = aFields.indexOf("article") !== -1 ? oRow.article : null;
+		// KUNNR / MATNR with leading zeros (shown without them, see alpha).
+		o[FIELD.customer] = aFields.indexOf("customer") !== -1 ? alpha.input(oRow.customer, alpha.LENGTH.customer) : null;
+		o[FIELD.article] = aFields.indexOf("article") !== -1 ? alpha.input(oRow.article, alpha.LENGTH.article) : null;
 		o[FIELD.brand] = aFields.indexOf("brand") !== -1 ? oRow.brand : null;
 		o[FIELD.hierarchy] = aFields.indexOf("brand") !== -1 ? oRow.hierarchy : null;
 		o[FIELD.validFrom] = _toIsoDate(oRow.validFrom);
@@ -948,7 +950,9 @@ sap.ui.define([
 		var aMissing = [];
 		oComb.keys.forEach(function (k) {
 			var sProp = _s4Property(k);
-			var sValue = oRow[KEY_VALUE[k.code]] || k.defaultValue || "";
+			var sField = KEY_VALUE[k.code];
+			// Customer / Material with leading zeros (KUNNR 10, MATNR 18).
+			var sValue = alpha.input(oRow[sField] || k.defaultValue || "", alpha.LENGTH[sField]);
 			if (!sProp) {
 				if (k.required && k.code !== "HIERARCHY") {
 					aMissing.push(k.field);
@@ -1100,6 +1104,9 @@ sap.ui.define([
 				o[k] = "";
 			}
 		});
+		// Kept with leading zeros internally, so "5000" and "0000005000" are the same customer.
+		o.customer = alpha.input(o.customer, alpha.LENGTH.customer);
+		o.article = alpha.input(o.article, alpha.LENGTH.article);
 		var oType = _mTypes[o.conditionType];
 		if (oType && oType.kind === "percent") {
 			o.rateUnit = PERCENT;
@@ -1130,12 +1137,12 @@ sap.ui.define([
 		return aOpen;
 	}
 
-	// "ZSRP KC01 MY01 / 0010000001 / ...: <message>" for every row of the campaign in status Error.
+	// "ZSRP KC01 MY01 / 10000001 / ...: <message>" for every row of the campaign in status Error.
 	function _errorTexts(sCampaignId) {
 		return conditionsOf(sCampaignId).filter(function (o) {
 			return o.status === STATUS.ERROR;
 		}).map(function (o) {
-			var sKeys = [o.salesOrg, o.customer, o.article, o.brand].filter(Boolean).join(" / ");
+			var sKeys = [o.salesOrg, alpha.output(o.customer), alpha.output(o.article), o.brand].filter(Boolean).join(" / ");
 			return o.conditionType + " " + o.combination + (sKeys ? " " + sKeys : "") + ": " + o.message;
 		});
 	}
@@ -1167,7 +1174,7 @@ sap.ui.define([
 		var oPatch = {};
 		oPatch[FIELD.status] = bPosted ? RECORD_STATUS.POSTED : RECORD_STATUS.FAILED;
 		if (bPosted) {
-			oPatch[FIELD.recordNo] = sRecordNo;
+			oPatch[FIELD.recordNo] = alpha.input(sRecordNo, alpha.LENGTH.recordNo);
 		}
 		oPatch[FIELD.message] = bPosted ? null : sMessage;
 		var pPatch = oRow.persisted ? capService.update(_recordPath(oRow.rowId), oPatch) : Promise.resolve(null);
@@ -1184,7 +1191,7 @@ sap.ui.define([
 			oRow.deletable = !bPosted;
 			oRow.recordNo = bPosted ? sRecordNo : "";
 			_setStatus(oRow, bPosted ? STATUS.POSTED : STATUS.FAILED, bPosted ?
-				"Posted to S/4 as " + sRecordNo + ", but the status could not be stored: " + oError.message :
+				"Posted to S/4 as " + alpha.output(sRecordNo) + ", but the status could not be stored: " + oError.message :
 				sMessage + " (status not stored: " + oError.message + ")");
 		});
 	}
@@ -1528,12 +1535,12 @@ sap.ui.define([
 				var aFailed = aResults.filter(function (r) { return r.status === "rejected"; }).map(function (r) {
 					return (r.reason && r.reason.message) || String(r.reason);
 				});
-				// "ZSRP KC01 MY01 / 0010000001 / ...: 0000123456" for every row posted now.
+				// "ZSRP KC01 MY01 / 10000001 / ...: 123456" for every row posted now (shown without leading zeros).
 				var aPosted = aPost.filter(function (oRow, i) {
 					return aResults[i].status === "fulfilled";
 				}).map(function (o) {
-					var sKeys = [o.salesOrg, o.customer, o.article, o.brand].filter(Boolean).join(" / ");
-					return o.conditionType + " " + o.combination + (sKeys ? " " + sKeys : "") + ": " + o.recordNo;
+					var sKeys = [o.salesOrg, alpha.output(o.customer), alpha.output(o.article), o.brand].filter(Boolean).join(" / ");
+					return o.conditionType + " " + o.combination + (sKeys ? " " + sKeys : "") + ": " + alpha.output(o.recordNo);
 				});
 				return {
 					posted: aPosted,

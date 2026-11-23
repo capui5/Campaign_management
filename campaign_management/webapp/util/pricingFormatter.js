@@ -1,7 +1,8 @@
 sap.ui.define([
 	"sap/ui/core/format/DateFormat",
-	"com/luxasia/campaignmanagement/util/pricingService"
-], function (DateFormat, pricingService) {
+	"com/luxasia/campaignmanagement/util/pricingService",
+	"com/luxasia/campaignmanagement/util/alpha"
+], function (DateFormat, pricingService, alpha) {
 	"use strict";
 
 	// Display texts for pricing condition rows, shared by the pricing screen and the campaign detail.
@@ -10,6 +11,17 @@ sap.ui.define([
 		// Condition validity dates are local calendar dates (see pricingService).
 		date: function (oDate) {
 			return oDate ? DateFormat.getDateInstance({ pattern: "dd-MM-yyyy" }).format(oDate) : "";
+		},
+
+		// Customer / article / record number without leading zeros ("0000005000" -> "5000").
+		alpha: function (s) {
+			return alpha.output(s);
+		},
+
+		// Token "5000 - Name" (number only when the name is not known).
+		alphaToken: function (sKey, sText) {
+			var sNo = alpha.output(sKey);
+			return sText && sText !== sKey ? sNo + " - " + sText : sNo;
 		},
 
 		// Description from CAP ConditionTypes.
@@ -30,10 +42,10 @@ sap.ui.define([
 				aParts.push(this._i18n("Pricing_Brand") + " " + sBrand + (sHierarchy ? " (" + sHierarchy + ")" : ""));
 			}
 			if (sCustomer) {
-				aParts.push(this._i18n("Pricing_Customer") + " " + sCustomer);
+				aParts.push(this._i18n("Pricing_Customer") + " " + alpha.output(sCustomer));
 			}
 			if (sArticle) {
-				aParts.push(this._i18n("Pricing_Article") + " " + sArticle);
+				aParts.push(this._i18n("Pricing_Article") + " " + alpha.output(sArticle));
 			}
 			return aParts.length ? aParts.join(", ") : (sComb ? this._i18n("Camp_Campaign") : "");
 		},
