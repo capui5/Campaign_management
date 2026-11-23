@@ -83,7 +83,7 @@
                                                 liveChange="onFieldChange" placeholder="{i18n>Camp_Description_Placeholder}" />
 
                                             <m:Label text="{i18n>Camp_Country}" required="true" />
-                                            <m:Select id="campCountry" selectedKey="{camp>/data/country}" editable="{camp>/edit}"
+                                            <m:Select id="campCountry" selectedKey="{camp>/data/country}" editable="false"
                                                 items="{path: 'CampModel>/countries', sorter: {path: 'Landx'}, templateShareable: false}"
                                                 forceSelection="false" width="100%"
                                                 valueState="{camp>/state/country}" valueStateText="{camp>/stateText/country}"
@@ -92,8 +92,6 @@
                                             </m:Select>
                                         </f:content>
                                     </f:SimpleForm>
-                                    <m:MessageStrip text="{i18n>Camp_Country_Hint}" type="Information" showIcon="true"
-                                        class="sapUiSmallMarginTop" visible="{camp>/edit}" />
                                 </m:VBox>
                             </blocks>
                         </ObjectPageSubSection>
@@ -136,7 +134,6 @@
                                             </m:ColumnListItem>
                                         </m:items>
                                     </m:Table>
-                                    <m:MessageStrip text="{i18n>Camp_Pricing_Hint}" type="Information" showIcon="true" class="sapUiSmallMarginTop" />
                                 </m:VBox>
                             </blocks>
                         </ObjectPageSubSection>
@@ -164,7 +161,6 @@
                                             </m:ColumnListItem>
                                         </m:items>
                                     </m:Table>
-                                    <m:MessageStrip text="{i18n>Camp_History_Hint}" type="Information" showIcon="true" class="sapUiSmallMarginTop" />
                                 </m:VBox>
                             </blocks>
                         </ObjectPageSubSection>

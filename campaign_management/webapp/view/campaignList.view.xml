@@ -39,14 +39,6 @@
                             <Input id="fltCampaign" placeholder="{i18n>Camp_Filter_Campaign_Placeholder}" submit="onSearch" />
                         </fb:control>
                     </fb:FilterGroupItem>
-                    <fb:FilterGroupItem name="country" label="{i18n>Camp_Country}" groupName="camp" visibleInFilterBar="true">
-                        <fb:control>
-                            <MultiComboBox id="fltCountry" items="{path: 'CampModel>/countries', sorter: {path: 'Landx'}}"
-                                showSelectAll="true" placeholder="{i18n>Camp_All_Countries}">
-                                <core:Item key="{CampModel>Land1}" text="{= ${CampModel>Land1} + ' ' + ${CampModel>Landx} }" />
-                            </MultiComboBox>
-                        </fb:control>
-                    </fb:FilterGroupItem>
                     <fb:FilterGroupItem name="createdBy" label="{i18n>Camp_Created_By}" groupName="camp" visibleInFilterBar="true">
                         <fb:control>
                             <Input id="fltCreatedBy" submit="onSearch" />

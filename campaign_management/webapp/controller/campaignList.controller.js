@@ -105,7 +105,7 @@ sap.ui.define([
             backNavGuard.arm(this);
             campaignService.init(this.getOwnerComponent()).then(function () {
                 that.getView().setModel(campaignService.getModel(), "CampModel");
-                // First visit shows all countries; the country filter applies only when selected.
+                // Campaigns of the user's own country (set by campaignService.search).
                 return that._load(that._oCriteria || that._readFilterControls());
             }).catch(function (oError) {
                 oViewModel.setProperty("/busy", false);
@@ -176,8 +176,8 @@ sap.ui.define([
             var oDate = this.byId("fltCreatedOn");
             return {
                 campaign: (this.byId("fltCampaign").getValue() || "").trim(),
-                // No country selected means all countries.
-                countries: this.byId("fltCountry").getSelectedKeys(),
+                // No country filter on the list: the service limits the search to the user's country.
+                countries: [],
                 createdBy: (this.byId("fltCreatedBy").getValue() || "").trim(),
                 from: oDate.getDateValue(),
                 to: oDate.getSecondDateValue()
@@ -188,10 +188,9 @@ sap.ui.define([
             this._load(this._readFilterControls());
         },
 
-        // Clear resets the filters and the status tab, so the table shows the campaigns of all countries.
+        // Clear resets the filters and the status tab, so the table shows all of the user's campaigns.
         onClearFilters: function () {
             this.byId("fltCampaign").setValue("");
-            this.byId("fltCountry").setSelectedKeys([]);
             this.byId("fltCreatedBy").setValue("");
             this.byId("fltCreatedOn").setValue("");
             this.getView().getModel("view").setProperty("/tab", "all");

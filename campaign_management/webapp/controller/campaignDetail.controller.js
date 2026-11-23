@@ -13,7 +13,7 @@ sap.ui.define([
     // Campaign create / change / display (FDD §4.1, §4.3, §5 "General tab", "Pricing tab" and "History tab").
     // Routes: campaignCreate (new) and campaignDetail/{campaignId}: the list's Display button opens it
     // read-only, its Change button adds ?mode=edit to open it in edit mode.
-    // Campaign ID and creation metadata are read-only; only description and country are editable.
+    // Campaign ID, country and creation metadata are read-only; only the description is editable.
     // The Pricing Conditions section lists the condition records linked to a saved campaign; they are
     // maintained on the campaignPricing screen.
     return Controller.extend("com.luxasia.campaignmanagement.controller.campaignDetail", {
@@ -76,7 +76,7 @@ sap.ui.define([
             oModel.setData(this._emptyState());
             oModel.setProperty("/busy", true);
             this._init().then(function () {
-                // §4.1: country defaults from the authenticated user; may be changed if authorized.
+                // §4.1: country is taken from the authenticated user and is not editable.
                 oModel.setProperty("/data/country", campaignService.getDefaultCountry());
                 that._refreshDisplay();
             }).catch(function (oError) {
@@ -232,7 +232,7 @@ sap.ui.define([
         _hasChanges: function () {
             var o = this._model().getProperty("/data");
             var oOrig = this._model().getProperty("/original");
-            // Only description and country are saved.
+            // Description and country are saved (country is fixed to the user default).
             return (o.description || "").trim() !== (oOrig.description || "") || o.country !== oOrig.country;
         },
 
