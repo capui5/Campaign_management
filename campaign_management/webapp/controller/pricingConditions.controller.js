@@ -769,7 +769,7 @@ sap.ui.define([
         },
 
         // Stores the draft as a DRAFT record (CampaignPricingRecords POST) and shows it in the records
-        // table; sales area, dates and condition type stay for the next row.
+        // table, then clears the entered details (campaign, condition type and combination stay).
         onAddDraft: function () {
             var that = this;
             var oModel = this._model();
@@ -787,11 +787,8 @@ sap.ui.define([
             }
             pricingService.addDrafts(aDrafts).then(function (aAdded) {
                 that._filterRecords(oModel.getProperty("/campaignId"));
-                ["customer", "article", "brand"].forEach(function (k) {
-                    that._setTokens(k, []);
-                });
-                oModel.setProperty("/draft/rate", "");
-                that._clearStates();
+                // Clear all entered condition details once the draft is added (stays on this screen).
+                that.onClearDraft();
                 MessageToast.show(aAdded.length > 1 ? that._i18n("Pricing_Drafts_Added", [aAdded.length]) :
                     that._i18n("Pricing_Draft_Added"));
             }).catch(function (oError) {
@@ -868,6 +865,12 @@ sap.ui.define([
             var oModel = this._model();
             oModel.setProperty("/busy", true);
             pricingService.save(oModel.getProperty("/campaignId")).then(function (o) {
+                // Records were saved to S/4: clear all entered condition details and, once the
+                // message is closed, go back to the campaign list.
+                var fnDone = o.saved ? function () { that._toCampaignList(); } : null;
+                if (o.saved) {
+                    that.onClearDraft();
+                }
                 if (!o.saved && !o.failed && !o.errors) {
                     MessageBox.information(that._i18n("Pricing_Nothing_Open"));
                 } else if (!o.saved) {
@@ -877,13 +880,16 @@ sap.ui.define([
                 } else if (o.failed || o.errors) {
                     // Some posted, some not: warning.
                     MessageBox.warning(that._i18n("Pricing_Save_Partial", [o.saved, o.failed, o.errors]), {
+                        onClose: fnDone,
                         details: (o.posted || []).length ? that._i18n("Pricing_Record_Numbers") + "\n" +
                             o.posted.join("\n") + "\n\n" + (o.messages || []).join("\n") : (o.messages || []).join("\n")
                     });
                 } else {
                     // The S/4 record numbers (KNUMH) are also in the Record No. column of the table.
                     MessageBox.success(that._i18n("Pricing_Save_Ok", [o.saved]) + "\n\n" +
-                        that._i18n("Pricing_Record_Numbers") + "\n" + (o.posted || []).join("\n"));
+                        that._i18n("Pricing_Record_Numbers") + "\n" + (o.posted || []).join("\n"), {
+                        onClose: fnDone
+                    });
                 }
             }).catch(function (oError) {
                 MessageBox.error(oError.message);
@@ -948,6 +954,12 @@ sap.ui.define([
             this.getOwnerComponent().getRouter().navTo("pricingConfig", {
                 "?query": Object.assign({ campaignId: this._model().getProperty("/campaignId") }, this._query())
             });
+        },
+
+        // After a successful Save to S/4 (no leave popup: nothing is left unsaved).
+        _toCampaignList: function () {
+            backNavGuard.disarm();
+            this.getOwnerComponent().getRouter().navTo("campaignList", {}, true);
         },
 
         onNavBack: function () {

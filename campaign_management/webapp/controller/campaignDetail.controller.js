@@ -260,7 +260,11 @@ sap.ui.define([
             oModel.setProperty("/busy", true);
             if (oModel.getProperty("/isNew")) {
                 campaignService.create(oDraft).then(function (oCampaign) {
-                    // On OK go back to the campaign list, which reloads its table on arrival.
+                    // Clear the entered fields as soon as the campaign is created (country stays the
+                    // user's default); on OK go back to the campaign list, which reloads on arrival.
+                    oModel.setProperty("/data", { id: "", description: "", country: campaignService.getDefaultCountry() });
+                    that._clearStates();
+                    that._refreshDisplay();
                     MessageBox.success(that._i18n("Camp_Created_Msg", [oCampaign.id]), {
                         onClose: function () {
                             that._leave();

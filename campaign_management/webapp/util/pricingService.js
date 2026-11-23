@@ -34,6 +34,8 @@ sap.ui.define([
 	// only by save() ("Save to S/4"):
 	//   POST A_SlsPrcgConditionRecord   deep insert of the condition record with one
 	//                                   to_SlsPrcgCndnRecdValidity entry; returns ConditionRecord (KNUMH).
+	//   GET A_SlsPrcgCndnRecdValidity?$filter=ZZCAMPAIGN eq '<id>'   condition types already in S/4
+	//                                   for the campaign; read on Add Draft for the header / item check.
 	//   The validity key properties follow the business keys of the record's key combination
 	//   (BUSINESS_KEYS.S4_FIELD, see S4_KEY_PROPERTY), so every condition table gets only its own keys.
 	//
@@ -58,6 +60,7 @@ sap.ui.define([
 	var S4_MODEL = "API_SLSPRICINGCONDITIONRECORD_SRV";
 	var S4_CONDITION_SET = "/A_SlsPrcgConditionRecord";
 	var S4_VALIDITY_TYPE = "A_SlsPrcgCndnRecdValidityType";
+	var S4_VALIDITY_SET = "/A_SlsPrcgCndnRecdValidity";
 	var S4_APPLICATION = "V"; // sales
 	// Header defaults of the S/4 deep insert, used when the row does not carry its own value
 	// (no configured condition table, percentage types without currency / quantity).
@@ -424,6 +427,59 @@ sap.ui.define([
 				success: function (oData) { resolve(oData || {}); },
 				error: function (oError) { reject(_fromODataError(oError)); }
 			});
+		});
+	}
+
+	// Condition types of the campaign's records in S/4 (A_SlsPrcgCndnRecdValidity, ZZCAMPAIGN eq ..).
+	function _s4CampaignTypes(sCampaignId) {
+		if (!_mAvailable.posting || !_s4()) {
+			return Promise.resolve([]);
+		}
+		return new Promise(function (resolve, reject) {
+			_s4().read(S4_VALIDITY_SET, {
+				urlParameters: {
+					$filter: "ZZCAMPAIGN eq '" + String(sCampaignId).replace(/'/g, "''") + "'",
+					$select: "ConditionType"
+				},
+				success: function (oData) {
+					resolve(((oData && oData.results) || []).map(function (r) {
+						return String(r.ConditionType || "").trim().toUpperCase();
+					}).filter(Boolean));
+				},
+				error: function (oError) { reject(_fromODataError(oError)); }
+			});
+		});
+	}
+
+	// Header / item check of Add Draft: all condition types of a campaign must be of the same level
+	// (ConditionTypes.LEVEL). Compared with the types already in S/4 for the campaign and with its
+	// other records in the app (drafts not yet posted); sExcludeRowId is the record being changed.
+	function _checkLevel(sCampaignId, aTypes, sExcludeRowId) {
+		return _s4CampaignTypes(sCampaignId).then(function (aS4Types) {
+			var aExisting = aS4Types.concat(conditionsOf(sCampaignId).filter(function (o) {
+				return o.rowId !== sExcludeRowId;
+			}).map(function (o) { return o.conditionType; }));
+			var aMsg = [];
+			var mSeen = {};
+			aTypes.forEach(function (sType) {
+				var sLevel = (_mTypes[sType] || {}).level;
+				if (!sLevel) {
+					return;
+				}
+				aExisting.forEach(function (sOther) {
+					var sOtherLevel = (_mTypes[sOther] || {}).level;
+					var sKey = sType + "|" + sOther;
+					if (sOtherLevel && sOtherLevel !== sLevel && !mSeen[sKey]) {
+						mSeen[sKey] = true;
+						aMsg.push(_err("Condition type " + sType + " (" + sLevel + " level) cannot be added. Campaign " +
+							sCampaignId + " already uses " + sOther + " (" + sOtherLevel + " level), and a campaign can " +
+							"have only header or only item condition types.", "conditionType"));
+					}
+				});
+			});
+			if (aMsg.length) {
+				throw _throw(aMsg);
+			}
 		});
 	}
 
@@ -1331,30 +1387,33 @@ sap.ui.define([
 			if (aMsg.length) {
 				return Promise.reject(_throw(aMsg));
 			}
-			var oCfg = getConfig(oRow.conditionType, oRow.combination);
-			oRow.tableNo = (oCfg && oCfg.tableNo) || "";
-			oRow.recordNo = "";
-			function replace(oNew) {
-				_setRows(_rows().map(function (o) { return o.rowId === sRowId ? oNew : o; }));
-				return oNew;
-			}
-			if (!oOld.persisted) {
-				oRow.persisted = false;
-				oRow.deletable = true;
-				_setStatus(oRow, STATUS.DRAFT);
-				return Promise.resolve(replace(oRow));
-			}
-			var oPayload = _recordPayload(oRow);
-			delete oPayload[FIELD.rowId];
-			delete oPayload[FIELD.campaignId];
-			return capService.update(_recordPath(sRowId), oPayload).then(function (oData) {
-				var oBase = Object.assign({}, oPayload);
-				oBase[FIELD.rowId] = sRowId;
-				oBase[FIELD.campaignId] = oOld.campaignId;
-				var oNew = _rowFromBackend(Object.assign(oBase, oData || {}));
-				oNew.createdBy = oNew.createdBy || oOld.createdBy;
-				oNew.createdOn = oNew.createdOn || oOld.createdOn;
-				return replace(oNew);
+			// Header / item check against the campaign's condition types in S/4 and in the app.
+			return _checkLevel(oRow.campaignId, [oRow.conditionType], sRowId).then(function () {
+				var oCfg = getConfig(oRow.conditionType, oRow.combination);
+				oRow.tableNo = (oCfg && oCfg.tableNo) || "";
+				oRow.recordNo = "";
+				function replace(oNew) {
+					_setRows(_rows().map(function (o) { return o.rowId === sRowId ? oNew : o; }));
+					return oNew;
+				}
+				if (!oOld.persisted) {
+					oRow.persisted = false;
+					oRow.deletable = true;
+					_setStatus(oRow, STATUS.DRAFT);
+					return Promise.resolve(replace(oRow));
+				}
+				var oPayload = _recordPayload(oRow);
+				delete oPayload[FIELD.rowId];
+				delete oPayload[FIELD.campaignId];
+				return capService.update(_recordPath(sRowId), oPayload).then(function (oData) {
+					var oBase = Object.assign({}, oPayload);
+					oBase[FIELD.rowId] = sRowId;
+					oBase[FIELD.campaignId] = oOld.campaignId;
+					var oNew = _rowFromBackend(Object.assign(oBase, oData || {}));
+					oNew.createdBy = oNew.createdBy || oOld.createdBy;
+					oNew.createdOn = oNew.createdOn || oOld.createdOn;
+					return replace(oNew);
+				});
 			});
 		},
 
@@ -1383,13 +1442,16 @@ sap.ui.define([
 			if (aMsg.length) {
 				return Promise.reject(_throw(aMsg));
 			}
-			return aRows.reduce(function (p, oRow) {
-				return p.then(function (aDone) {
-					return that.addDraft(Object.assign({}, oRow, { rowId: undefined })).then(function (oSaved) {
-						return aDone.concat([oSaved]);
+			// Header / item check against the campaign's condition types in S/4 and in the app.
+			return _checkLevel(aRows[0].campaignId, aRows.map(function (o) { return o.conditionType; })).then(function () {
+				return aRows.reduce(function (p, oRow) {
+					return p.then(function (aDone) {
+						return that.addDraft(Object.assign({}, oRow, { rowId: undefined })).then(function (oSaved) {
+							return aDone.concat([oSaved]);
+						});
 					});
-				});
-			}, Promise.resolve([]));
+				}, Promise.resolve([]));
+			});
 		},
 
 		// API §5.5: only DRAFT records can be deleted (CAP only); posted and failed records stay.
