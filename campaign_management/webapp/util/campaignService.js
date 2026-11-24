@@ -511,6 +511,16 @@ sap.ui.define([
 
 		// Loads the country list once and resolves the user's default country.
 		init: function (oComponent) {
+			if (_oComponent !== oComponent) {
+				// The app was (re)opened from the launchpad. This module outlives the component, so drop
+				// the cached user country: it may have been changed in the Country Selection app since.
+				_pEmployee = null;
+				_sEmployeeCountry = "";
+				if (_oModel) {
+					_oModel.setProperty("/storeCountry", "");
+					_oModel.setProperty("/defaultCountry", "");
+				}
+			}
 			_oComponent = oComponent;
 			capService.init(oComponent);
 			if (!_oModel) {
